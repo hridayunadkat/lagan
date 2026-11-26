@@ -1,0 +1,3 @@
+.supabase-home
+supabase
+src/**/*.test.ts
