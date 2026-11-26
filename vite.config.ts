@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['lagan-icon.svg'],
+      includeAssets: ['lagan-icon-192.png', 'lagan-icon-512.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'LAGAN — Build Your Character',
         short_name: 'LAGAN',
@@ -19,7 +19,9 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: 'lagan-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: 'lagan-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'lagan-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'lagan-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

@@ -99,7 +99,7 @@ function Onboarding({ onFinish, onDemo }: { onFinish: (data: AppData) => void; o
   }
   const starterName = (category: Category) => category === 'Physical' ? 'Exercise for 30 minutes' : category === 'Social' ? 'Reach out to a friend' : category === 'Discipline' ? 'Complete a focused work session' : category === 'Mental' ? 'Read for 20 minutes' : category === 'Finance' ? 'Review spending' : 'Take one step toward a goal'
   return <main className="onboarding">
-    <div className="brand-mark"><span>LA</span></div><p className="eyebrow">BUILD YOUR CHARACTER</p><h1>Level up your<br />real life.</h1>
+    <div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><p className="eyebrow">BUILD YOUR CHARACTER</p><h1>Level up your<br />real life.</h1>
     <p className="onboarding-copy">Turn daily actions into visible progress across the six attributes that shape who you become.</p>
     <label className="field-label onboarding-name">WHAT SHOULD WE CALL YOU?<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
     <span className="field-label">CHOOSE YOUR FOCUS</span><div className="choice-grid">{CATEGORIES.map((category) => <button key={category} className={focus.includes(category) ? 'selected' : ''} onClick={() => toggle(focus, category, setFocus)}><CategoryIcon category={category} />{category}<Check size={15} /></button>)}</div>
@@ -110,7 +110,7 @@ function Onboarding({ onFinish, onDemo }: { onFinish: (data: AppData) => void; o
 
 function Header({ data, mode }: { data: AppData; mode: 'real' | 'demo' }) {
   const xp = xpFor(data), level = Math.floor(xp / 200) + 1, levelXp = xp % 200
-  return <header className="top-header"><div className="brand-small">LA</div><div className="level-status"><div><span>LEVEL {level}</span><span>{levelXp} / 200 XP</span></div><div className="xp-track"><span style={{ width: `${(levelXp / 200) * 100}%` }} /></div></div>{mode === 'demo' && <span className="demo-badge">DEMO</span>}</header>
+  return <header className="top-header"><div className="brand-small"><img src="/lagan-icon-192.png" alt="" /></div><div className="level-status"><div><span>LEVEL {level}</span><span>{levelXp} / 200 XP</span></div><div className="xp-track"><span style={{ width: `${(levelXp / 200) * 100}%` }} /></div></div>{mode === 'demo' && <span className="demo-badge">DEMO</span>}</header>
 }
 
 function EmptyState({ icon, title, body, action, onAction }: { icon: ReactNode; title: string; body: string; action: string; onAction: () => void }) {
@@ -252,7 +252,7 @@ function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabi
     <section className="settings-group"><h2>App</h2><div className="settings-card"><button className="setting-row" onClick={refreshApp} disabled={refreshing}><RefreshCw className={refreshing ? 'spinning' : ''} /><span><strong>{refreshing ? 'Refreshing…' : 'Refresh app'}</strong><small>Fetch the newest version without deleting your data</small></span><ChevronRight /></button></div></section>
     <section className="settings-group"><h2>Modes</h2><div className="settings-card"><button className="setting-row" onClick={onDemo}><Sparkles /><span><strong>Try demo</strong><small>Explore with believable sample history</small></span><ChevronRight /></button>{mode === 'demo' && <button className="setting-row" onClick={onFresh}><ArrowLeft /><span><strong>Return to real tracking</strong><small>Your real data is waiting</small></span><ChevronRight /></button>}</div></section>
     <section className="settings-group danger-zone"><h2>Danger zone</h2><button className="setting-row" onClick={reset}><RotateCcw /><span><strong>Reset all real data</strong><small>This cannot be undone</small></span><ChevronRight /></button></section>
-    <div className="about"><div className="brand-small">LA</div><strong>LAGAN</strong><span>Version 1.1 · Secure cloud sync</span><p>{accountEmail ? 'Your progress is synced to your account.' : 'Demo data stays on this device.'}</p></div>
+    <div className="about"><div className="brand-small"><img src="/lagan-icon-192.png" alt="" /></div><strong>LAGAN</strong><span>Version 1.1 · Secure cloud sync</span><p>{accountEmail ? 'Your progress is synced to your account.' : 'Demo data stays on this device.'}</p></div>
   </div>
 }
 
@@ -270,7 +270,7 @@ export default function LevelApp() {
   useEffect(() => {
     if (session && mode !== 'real') setMode('real')
   }, [mode, session, setMode])
-  if (loading) return <div className="auth-loading"><div className="brand-mark"><span>LA</span></div><span>Loading your character…</span></div>
+  if (loading) return <div className="auth-loading"><div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><span>Loading your character…</span></div>
   if (!session && mode !== 'demo') return <AuthScreen onDemo={refreshDemo} />
   if (!data.onboarded && mode === 'real') return <Onboarding onFinish={setData} onDemo={refreshDemo} />
   return <div className="app-shell"><Header data={data} mode={mode} /><div className="ambient-orb" style={{ opacity: Math.max(.12, overallScore(scores) / 250) }} /><main>{tab === 'home' && <ProgressScreen data={data} />}{tab === 'today' && <TodayScreen data={data} setData={setData} goHabits={() => setTab('habits')} />}{tab === 'history' && <HistoryScreen data={data} />}{tab === 'habits' && <HabitsScreen data={data} setData={setData} />}{tab === 'settings' && <SettingsScreen data={data} setData={setData} mode={mode} onDemo={refreshDemo} onFresh={resetReal} onImport={importData} goHabits={() => setTab('habits')} accountEmail={session?.user.email} username={username} syncState={syncState} onSignOut={signOut} />}</main><BottomNav tab={tab} setTab={setTab} /></div>

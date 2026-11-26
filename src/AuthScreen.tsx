@@ -50,7 +50,7 @@ export function AuthScreen({ onDemo }: { onDemo: () => void }) {
   }
 
   return <main className="auth-screen">
-    <div className="auth-brand"><span>LA</span></div>
+    <div className="auth-brand"><img src="/lagan-icon-192.png" alt="LAGAN" /></div>
     <p className="eyebrow">BUILD YOUR CHARACTER</p>
     <h1>{mode === 'login' ? 'Welcome back.' : 'Create your account.'}</h1>
     <p className="auth-copy">{mode === 'login' ? 'Your progress is waiting for you.' : 'Sync your habits and progress securely across devices.'}</p>
