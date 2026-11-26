@@ -7,7 +7,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AuthScreen } from './AuthScreen'
 import { useAccount, useCloudSync } from './lib/account'
-import { createStarterHabit, uid } from './lib/data'
+import { createStarterHabit, HABIT_PRESETS, uid } from './lib/data'
 import {
   completionKey, completionRatio, dailyRatio, dateKey, dateRange, habitStreak, isScheduled,
   overallScore, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
@@ -78,6 +78,7 @@ function HabitForm({ habit, onSave, onCancel }: { habit?: Habit; onSave: (draft:
   })
   const toggleDay = (day: number) => setDraft((value) => ({ ...value, weekdays: value.weekdays.includes(day) ? value.weekdays.filter((item) => item !== day) : [...value.weekdays, day].sort() }))
   return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (draft.name.trim() && draft.weekdays.length) onSave({ ...draft, name: draft.name.trim() }) }}>
+    {!habit && <div><span className="field-label">QUICK PRESETS</span><div className="preset-grid">{HABIT_PRESETS.map((preset) => <button type="button" key={preset.name} onClick={() => setDraft({ ...preset, weekdays: FULL_WEEK })}>{preset.name}</button>)}</div></div>}
     <label className="field-label">HABIT NAME<input autoFocus value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="What will you do?" /></label>
     <label className="field-label">ATTRIBUTE<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as Category })}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
     <div><span className="field-label">SCHEDULE</span><div className="weekday-row">{WEEKDAYS.map((day, index) => <button type="button" key={`${day}-${index}`} className={draft.weekdays.includes(index) ? 'selected' : ''} onClick={() => toggleDay(index)}>{day}</button>)}</div></div>

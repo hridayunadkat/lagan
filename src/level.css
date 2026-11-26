@@ -28,7 +28,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #root { min-height: 100svh; }
 
 .app-shell, .onboarding, .auth-screen { width: 100%; max-width: 480px; min-height: 100svh; margin: 0 auto; background: #08090a; position: relative; overflow: hidden; }
-.app-shell > main { padding: 70px 18px 112px; position: relative; z-index: 1; }
+.app-shell > main { padding: 70px 18px 112px; position: relative; }
 .screen { animation: screen-in .28s ease-out; }
 @keyframes screen-in { from { opacity: 0; transform: translateY(5px); } }
 
@@ -88,7 +88,7 @@ h2 { font-size: 17px; letter-spacing: -.35px; }
 
 .manage-link { width: 100%; margin-top: 16px; padding: 13px; display: flex; align-items: center; justify-content: center; gap: 4px; border: 0; background: transparent; color: #8e949b; font-size: 11px; cursor: pointer; }
 
-.filter-scroll { display: flex; gap: 7px; overflow-x: auto; padding: 0 0 3px; scrollbar-width: none; }
+.filter-scroll { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 0 3px; }
 .filter-scroll button { padding: 8px 12px; border: 1px solid #2c2f33; border-radius: 999px; background: #121416; color: #858b92; font-size: 10px; white-space: nowrap; cursor: pointer; }
 .filter-scroll button.selected { color: var(--lime); border-color: var(--lime); background: rgba(184,255,90,.06); }
 .manage-card { overflow: hidden; }
@@ -167,6 +167,9 @@ h2 { font-size: 17px; letter-spacing: -.35px; }
 .form-stack { display: flex; flex-direction: column; gap: 18px; padding-top: 7px; }
 .field-label { display: flex; flex-direction: column; gap: 7px; }
 .field-label input, .field-label select { width: 100%; height: 47px; padding: 0 13px; border: 1px solid #34383c; border-radius: 11px; background: #0b0d0e; color: #f1f2f3; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.preset-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.preset-grid button { min-height: 34px; padding: 0 11px; border: 1px solid #34383c; border-radius: 999px; background: #17191b; color: #b3b7bc; font-size: 9px; cursor: pointer; }
+.preset-grid button:active { border-color: var(--lime); color: var(--lime); background: rgba(184,255,90,.06); }
 .weekday-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 8px; }
 .weekday-row button { aspect-ratio: 1; border: 1px solid #363a3e; border-radius: 50%; background: #17191b; color: #81878e; font-size: 10px; cursor: pointer; }
 .weekday-row button.selected { color: #111; background: var(--lime); border-color: var(--lime); }

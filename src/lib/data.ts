@@ -3,6 +3,14 @@ import { CATEGORIES, type AppData, type Category, type Habit } from './types'
 
 export const uid = () => crypto.randomUUID()
 
+export const HABIT_PRESETS = [
+  { name: 'Exercise', category: 'Physical', kind: 'numeric', target: 30, unit: 'minutes' },
+  { name: 'Read', category: 'Mental', kind: 'numeric', target: 20, unit: 'minutes' },
+  { name: 'Learn Gujarati', category: 'Mental', kind: 'numeric', target: 15, unit: 'minutes' },
+  { name: 'Play a chess game', category: 'Mental', kind: 'checkbox', target: 1, unit: 'game' },
+  { name: 'Journal', category: 'Mental', kind: 'checkbox', target: 1, unit: 'entry' },
+] as const
+
 const STARTERS: Record<Category, { name: string; kind: 'checkbox' | 'numeric'; target: number; unit: string }> = {
   Physical: { name: 'Exercise', kind: 'numeric', target: 30, unit: 'minutes' },
   Social: { name: 'Reach out to a friend', kind: 'checkbox', target: 1, unit: 'time' },
