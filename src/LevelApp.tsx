@@ -2,7 +2,7 @@ import {
   Archive, ArrowLeft, BarChart3, CalendarDays, Check, ChevronRight, CircleDollarSign,
   Download, Dumbbell, Flame, Focus, Gauge, Home, Lightbulb, Minus, Pencil, Plus,
   RotateCcw, Settings, ShieldCheck, Sparkles, Target, Trash2, TrendingUp, Upload,
-  UserRound, UsersRound, X, LogOut, Cloud,
+  UserRound, UsersRound, X, LogOut, Cloud, History as HistoryIcon, RefreshCw,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AuthScreen } from './AuthScreen'
@@ -17,7 +17,7 @@ import {
   CATEGORIES, CATEGORY_META, type AppData, type Category, type Habit, type HabitKind,
 } from './lib/types'
 
-type Tab = 'home' | 'today' | 'habits' | 'settings'
+type Tab = 'home' | 'today' | 'history' | 'habits' | 'settings'
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const FULL_WEEK = [0, 1, 2, 3, 4, 5, 6]
 
@@ -169,22 +169,31 @@ function HabitsScreen({ data, setData }: { data: AppData; setData: (updater: (da
       return <article key={habit.id} className="manage-card"><button className="manage-card-main" onClick={() => setHistoryHabit(habit)}><CategoryIcon category={version.category} /><span><strong>{version.name}</strong><small>{version.weekdays.length === 7 ? 'Every day' : `${version.weekdays.length} days/week`} · {version.kind === 'numeric' ? `${version.target} ${version.unit}` : 'Once'}</small></span><ChevronRight size={17} /></button><div className="habit-card-footer"><span><Flame size={14} /> {streak} day streak</span><div><button onClick={() => setEditing(habit)} aria-label={`Edit ${version.name}`}><Pencil size={16} /></button><button onClick={() => archive(habit)} aria-label={`Archive ${version.name}`}><Archive size={16} /></button><button onClick={() => remove(habit)} aria-label={`Delete ${version.name}`}><Trash2 size={16} /></button></div></div></article>
     })}</div>}
     {data.habits.some((habit) => habit.archivedDate) && <details className="archived"><summary>Archived habits ({data.habits.filter((habit) => habit.archivedDate).length})</summary>{data.habits.filter((habit) => habit.archivedDate).map((habit) => <div key={habit.id}><span>{versionOn(habit, shiftDate(habit.archivedDate!, -1))?.name}</span><button onClick={() => setData((current) => ({ ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, archivedDate: undefined } : item) }))}>Restore</button></div>)}</details>}
-    <HabitInsights data={data} />
     {editing && <Modal title={editing === 'new' ? 'Create a habit' : 'Edit habit'} onClose={() => setEditing(null)}><HabitForm habit={editing === 'new' ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} /></Modal>}
     {historyHabit && <HabitHistory data={data} habit={historyHabit} onClose={() => setHistoryHabit(null)} />}
   </div>
 }
 
-function HabitInsights({ data }: { data: AppData }) {
+function HistoryScreen({ data }: { data: AppData }) {
   const streaks = streaksFor(data)
   const week = dateRange(shiftDate(dateKey(), -6), dateKey())
   const activity = dateRange(shiftDate(dateKey(), -34), dateKey())
-  return <section className="habit-insights">
-    <div className="section-title"><div><h2>Consistency</h2><span>Your habit history</span></div></div>
+  const weeklyScores = Array.from({ length: 8 }, (_, index) => {
+    const end = shiftDate(dateKey(), index * -7)
+    const scores = scoresFor(data, end)
+    return { end, start: shiftDate(end, -6), scores, overall: overallScore(scores) }
+  })
+  return <div className="screen history-screen">
+    <section className="page-heading"><p className="eyebrow">YOUR TIMELINE</p><h1>History</h1><p>Compare the character you’re building.</p></section>
     <section className="stats-row"><div><Flame /><strong>{streaks.current}</strong><span>Current streak</span></div><div><Gauge /><strong>{streaks.longest}</strong><span>Longest streak</span></div><div><Check /><strong>{totalCompletions(data)}</strong><span>Completions</span></div></section>
     <section className="chart-card"><div className="card-title"><div><h2>Weekly completion</h2><span>Last 7 days</span></div><BarChart3 size={19} /></div><div className="weekly-chart">{week.map((day) => { const ratio = dailyRatio(data, day); return <div key={day}><span className="bar-value">{ratio === null ? '—' : `${Math.round(ratio * 100)}`}</span><div className="bar-track"><span style={{ height: `${Math.max(3, (ratio ?? 0) * 100)}%` }} /></div><small>{new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(new Date(`${day}T12:00:00`))}</small></div> })}</div></section>
     <section className="chart-card"><div className="card-title"><div><h2>Activity</h2><span>Last 5 weeks</span></div><CalendarDays size={19} /></div><div className="activity-grid">{activity.map((day) => { const ratio = dailyRatio(data, day); return <div key={day} title={`${day}${ratio === null ? ': rest day' : `: ${Math.round(ratio * 100)}%`}`} className={ratio === null ? 'rest' : ratio >= 1 ? 'a4' : ratio >= .66 ? 'a3' : ratio > 0 ? 'a2' : 'a1'} /> })}</div></section>
-  </section>
+    <section className="history-weeks"><div className="section-title"><div><h2>Weekly scores</h2><span>Last 8 weeks</span></div></div><div className="weekly-score-list">{weeklyScores.map((item, index) => {
+      const previous = weeklyScores[index + 1]
+      const change = previous ? item.overall - previous.overall : 0
+      return <article className="weekly-score-card" key={item.end}><div className="week-score-heading"><span><strong>{index === 0 ? 'This week' : `${index} week${index === 1 ? '' : 's'} ago`}</strong><small>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${item.start}T12:00:00`))} – {new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${item.end}T12:00:00`))}</small></span><span className="week-overall"><strong>{item.overall}</strong>{previous && <small className={change > 0 ? 'up' : change < 0 ? 'down' : ''}>{change > 0 ? '+' : ''}{change}</small>}</span></div><div className="week-attributes">{CATEGORIES.map((category) => <div key={category} title={`${category}: ${item.scores[category] ?? 'No data'}`}><span style={{ background: CATEGORY_META[category].color, width: `${item.scores[category] ?? 0}%` }} /></div>)}</div></article>
+    })}</div></section>
+  </div>
 }
 
 function HabitHistory({ data, habit, onClose }: { data: AppData; habit: Habit; onClose: () => void }) {
@@ -214,15 +223,33 @@ function AttributeDetail({ data, category, score, onClose }: { data: AppData; ca
 
 function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabits, accountEmail, username, syncState, onSignOut }: { data: AppData; setData: (updater: (data: AppData) => AppData) => void; mode: 'real' | 'demo'; onDemo: () => void; onFresh: () => void; onImport: (raw: string) => void; goHabits: () => void; accountEmail?: string; username: string; syncState: 'idle' | 'loading' | 'saved' | 'error'; onSignOut: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null), [name, setName] = useState(data.name)
+  const [refreshing, setRefreshing] = useState(false)
   const exportData = () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `lagan-backup-${dateKey()}.json`; link.click(); URL.revokeObjectURL(link.href) }
   const importFile = async (file?: File) => { if (!file) return; try { onImport(await file.text()) } catch (error) { alert(error instanceof Error ? error.message : 'Could not import this file.') } if (fileRef.current) fileRef.current.value = '' }
   const reset = () => { if (confirm('Reset LAGAN? This permanently removes your real habits, history, and XP from this device.')) onFresh() }
+  const refreshApp = async () => {
+    setRefreshing(true)
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(registrations.map((registration) => registration.update()))
+        await Promise.all(registrations.map((registration) => registration.unregister()))
+      }
+      if ('caches' in window) {
+        const names = await caches.keys()
+        await Promise.all(names.map((cacheName) => caches.delete(cacheName)))
+      }
+    } finally {
+      window.location.reload()
+    }
+  }
   return <div className="screen">
     <section className="page-heading"><p className="eyebrow">CONFIGURATION</p><h1>Settings</h1><p>Make LAGAN yours.</p></section>
     {mode === 'demo' && <section className="demo-panel"><Sparkles /><div><strong>You’re exploring demo mode</strong><p>Demo history is separate from your real progress.</p></div><button onClick={onFresh}>Sign in</button></section>}
     {accountEmail && <section className="settings-group"><h2>Account</h2><div className="settings-card"><div className="account-row"><div className="account-avatar">{(username || accountEmail).slice(0, 1).toUpperCase()}</div><span><strong>{username || 'LAGAN player'}</strong><small>{accountEmail}</small></span><div className={`sync-badge ${syncState}`}><Cloud size={12} />{syncState === 'loading' ? 'Syncing' : syncState === 'error' ? 'Offline' : 'Synced'}</div></div><button className="setting-row" onClick={onSignOut}><LogOut /><span><strong>Sign out</strong><small>Your local data stays on this device</small></span><ChevronRight /></button></div></section>}
     <section className="settings-group"><h2>Profile</h2><div className="settings-card"><div className="setting-name"><UserRound /><label><span>YOUR NAME</span><input value={name} onChange={(event) => setName(event.target.value)} onBlur={() => setData((current) => ({ ...current, name: name.trim() }))} /></label></div><button className="setting-row" onClick={goHabits}><Target /><span><strong>Manage habits</strong><small>{data.habits.filter((habit) => !habit.archivedDate).length} active habits</small></span><ChevronRight /></button></div></section>
     <section className="settings-group"><h2>Your data</h2><div className="settings-card"><button className="setting-row" onClick={exportData}><Download /><span><strong>Export backup</strong><small>Download your data as JSON</small></span><ChevronRight /></button><button className="setting-row" onClick={() => fileRef.current?.click()}><Upload /><span><strong>Import backup</strong><small>Restore a LAGAN JSON file</small></span><ChevronRight /></button><input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /></div></section>
+    <section className="settings-group"><h2>App</h2><div className="settings-card"><button className="setting-row" onClick={refreshApp} disabled={refreshing}><RefreshCw className={refreshing ? 'spinning' : ''} /><span><strong>{refreshing ? 'Refreshing…' : 'Refresh app'}</strong><small>Fetch the newest version without deleting your data</small></span><ChevronRight /></button></div></section>
     <section className="settings-group"><h2>Modes</h2><div className="settings-card"><button className="setting-row" onClick={onDemo}><Sparkles /><span><strong>Try demo</strong><small>Explore with believable sample history</small></span><ChevronRight /></button>{mode === 'demo' && <button className="setting-row" onClick={onFresh}><ArrowLeft /><span><strong>Return to real tracking</strong><small>Your real data is waiting</small></span><ChevronRight /></button>}</div></section>
     <section className="settings-group danger-zone"><h2>Danger zone</h2><button className="setting-row" onClick={reset}><RotateCcw /><span><strong>Reset all real data</strong><small>This cannot be undone</small></span><ChevronRight /></button></section>
     <div className="about"><div className="brand-small">LA</div><strong>LAGAN</strong><span>Version 1.1 · Secure cloud sync</span><p>{accountEmail ? 'Your progress is synced to your account.' : 'Demo data stays on this device.'}</p></div>
@@ -230,7 +257,7 @@ function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabi
 }
 
 function BottomNav({ tab, setTab }: { tab: Tab; setTab: (tab: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: typeof Home }[] = [{ id: 'home', label: 'Home', icon: Home }, { id: 'today', label: 'Today', icon: CalendarDays }, { id: 'habits', label: 'Habits', icon: Focus }, { id: 'settings', label: 'Settings', icon: Settings }]
+  const items: { id: Tab; label: string; icon: typeof Home }[] = [{ id: 'home', label: 'Home', icon: Home }, { id: 'today', label: 'Today', icon: CalendarDays }, { id: 'history', label: 'History', icon: HistoryIcon }, { id: 'habits', label: 'Habits', icon: Focus }, { id: 'settings', label: 'Settings', icon: Settings }]
   return <nav className="bottom-nav" aria-label="Main navigation">{items.map((item) => { const Icon = item.icon; return <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}><Icon size={21} strokeWidth={tab === item.id ? 2.5 : 1.8} /><span>{item.label}</span></button> })}</nav>
 }
 
@@ -246,5 +273,5 @@ export default function LevelApp() {
   if (loading) return <div className="auth-loading"><div className="brand-mark"><span>LA</span></div><span>Loading your character…</span></div>
   if (!session && mode !== 'demo') return <AuthScreen onDemo={refreshDemo} />
   if (!data.onboarded && mode === 'real') return <Onboarding onFinish={setData} onDemo={refreshDemo} />
-  return <div className="app-shell"><Header data={data} mode={mode} /><div className="ambient-orb" style={{ opacity: Math.max(.12, overallScore(scores) / 250) }} /><main>{tab === 'home' && <ProgressScreen data={data} />}{tab === 'today' && <TodayScreen data={data} setData={setData} goHabits={() => setTab('habits')} />}{tab === 'habits' && <HabitsScreen data={data} setData={setData} />}{tab === 'settings' && <SettingsScreen data={data} setData={setData} mode={mode} onDemo={refreshDemo} onFresh={resetReal} onImport={importData} goHabits={() => setTab('habits')} accountEmail={session?.user.email} username={username} syncState={syncState} onSignOut={signOut} />}</main><BottomNav tab={tab} setTab={setTab} /></div>
+  return <div className="app-shell"><Header data={data} mode={mode} /><div className="ambient-orb" style={{ opacity: Math.max(.12, overallScore(scores) / 250) }} /><main>{tab === 'home' && <ProgressScreen data={data} />}{tab === 'today' && <TodayScreen data={data} setData={setData} goHabits={() => setTab('habits')} />}{tab === 'history' && <HistoryScreen data={data} />}{tab === 'habits' && <HabitsScreen data={data} setData={setData} />}{tab === 'settings' && <SettingsScreen data={data} setData={setData} mode={mode} onDemo={refreshDemo} onFresh={resetReal} onImport={importData} goHabits={() => setTab('habits')} accountEmail={session?.user.email} username={username} syncState={syncState} onSignOut={signOut} />}</main><BottomNav tab={tab} setTab={setTab} /></div>
 }
