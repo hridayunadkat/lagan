@@ -20,6 +20,16 @@ saved. Scriptable stores the resulting refresh token in its iOS Keychain.
 The widget shows today's progress, completed and scheduled habit counts, the
 current streak, and—at medium size—up to three incomplete habits.
 
+## Add it to the Lock Screen
+
+1. Long-press the Lock Screen and tap **Customize → Lock Screen**.
+2. Tap the widget area, choose **Scriptable**, and add an inline, circular, or
+   rectangular widget.
+3. Tap the added widget and select **LaganWidget** under **Script**.
+4. Tap **Done**.
+
+Lock Screen widgets use compact layouts designed for each accessory size.
+
 ## Refresh behavior
 
 iOS decides when Home Screen widgets refresh. The script requests an update

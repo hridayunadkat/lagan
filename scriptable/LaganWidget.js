@@ -239,30 +239,87 @@ function createWidget(data) {
   return widget
 }
 
-function createErrorWidget(message) {
+function createAccessoryWidget(data, family) {
+  const summary = dailySummary(data)
+  const streak = currentStreak(data)
+  const score = Math.round(summary.progress * 100)
   const widget = new ListWidget()
-  widget.backgroundColor = COLORS.background
-  widget.setPadding(14, 14, 14, 14)
+  widget.url = APP_URL
+  widget.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000)
+
+  if (family === "accessoryInline") {
+    const text = widget.addText(`LAGAN ${score}% · ${summary.completed}/${summary.total} · 🔥 ${streak}`)
+    text.font = Font.semiboldSystemFont(12)
+    return widget
+  }
+
+  widget.addAccessoryWidgetBackground = true
+  if (family === "accessoryCircular") {
+    widget.setPadding(5, 5, 5, 5)
+    widget.addSpacer()
+    const title = widget.addText("LAGAN")
+    title.font = Font.boldSystemFont(7)
+    title.centerAlignText()
+    const value = widget.addText(`${score}%`)
+    value.font = Font.boldSystemFont(18)
+    value.centerAlignText()
+    widget.addSpacer()
+    return widget
+  }
+
+  widget.setPadding(8, 10, 8, 10)
+  const header = widget.addStack()
+  const title = header.addText("LAGAN")
+  title.font = Font.boldSystemFont(10)
+  header.addSpacer()
+  const streakText = header.addText(`🔥 ${streak}`)
+  streakText.font = Font.semiboldSystemFont(9)
+  widget.addSpacer(2)
+  const progress = widget.addText(`${score}%  ·  ${summary.completed}/${summary.total} complete`)
+  progress.font = Font.boldSystemFont(16)
+  const remaining = summary.items.filter((item) => !item.complete).slice(0, 2)
+  if (remaining.length) {
+    widget.addSpacer(2)
+    const habits = widget.addText(remaining.map((item) => item.name).join(" · "))
+    habits.font = Font.mediumSystemFont(9)
+    habits.lineLimit = 1
+  }
+  return widget
+}
+
+function createErrorWidget(message, family) {
+  const widget = new ListWidget()
+  const isAccessory = family?.startsWith("accessory")
+  if (family === "accessoryInline") {
+    const text = widget.addText("LAGAN · Open Scriptable")
+    text.font = Font.semiboldSystemFont(12)
+    return widget
+  }
+  if (isAccessory) widget.addAccessoryWidgetBackground = true
+  else widget.backgroundColor = COLORS.background
+  widget.setPadding(isAccessory ? 8 : 14, isAccessory ? 8 : 14, isAccessory ? 8 : 14, isAccessory ? 8 : 14)
   const title = widget.addText("LAGAN")
   title.font = Font.boldSystemFont(11)
-  title.textColor = COLORS.lime
-  widget.addSpacer(10)
+  if (!isAccessory) title.textColor = COLORS.lime
+  widget.addSpacer(isAccessory ? 4 : 10)
   const text = widget.addText(message)
-  text.font = Font.mediumSystemFont(11)
-  text.textColor = COLORS.text
-  text.lineLimit = 4
+  text.font = Font.mediumSystemFont(isAccessory ? 9 : 11)
+  if (!isAccessory) text.textColor = COLORS.text
+  text.lineLimit = isAccessory ? 2 : 4
   widget.url = APP_URL
   widget.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000)
   return widget
 }
 
+const family = config.widgetFamily || "medium"
+const isAccessory = family.startsWith("accessory")
 let widget
 try {
   const session = await refreshSession()
   const data = await loadLaganData(session)
-  widget = createWidget(data)
+  widget = isAccessory ? createAccessoryWidget(data, family) : createWidget(data)
 } catch (error) {
-  widget = createErrorWidget(String(error.message || error))
+  widget = createErrorWidget(String(error.message || error), family)
   if (!config.runsInWidget) {
     const alert = new Alert()
     alert.title = "LAGAN Widget"
