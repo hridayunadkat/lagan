@@ -51,6 +51,12 @@ describe('LAGAN scoring', () => {
     expect(xpFor(state)).toBe(0)
   })
 
+  it('does not award XP for removed legacy challenges', () => {
+    const state = data()
+    state.challenges['legacy:2026-11-26'] = { completedAt: '' }
+    expect(xpFor(state)).toBe(0)
+  })
+
   it('does not let an unfinished current day break yesterday’s streak', () => {
     const state = data()
     for (const day of ['2026-11-23', '2026-11-24', '2026-11-25']) {

@@ -74,7 +74,7 @@ export const xpFor = (data: AppData) => {
     const version = habit && versionOn(habit, day)
     return xp + (version && completion.value >= version.target ? 20 : 0)
   }, 0)
-  return habitXp + Object.keys(data.challenges).length * 30
+  return habitXp
 }
 
 const dayComplete = (data: AppData, day: string) => {

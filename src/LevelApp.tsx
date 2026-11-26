@@ -2,12 +2,12 @@ import {
   Archive, ArrowLeft, BarChart3, CalendarDays, Check, ChevronRight, CircleDollarSign,
   Download, Dumbbell, Flame, Focus, Gauge, Home, Lightbulb, Minus, Pencil, Plus,
   RotateCcw, Settings, ShieldCheck, Sparkles, Target, Trash2, TrendingUp, Upload,
-  UserRound, UsersRound, X, Zap, LogOut, Cloud,
+  UserRound, UsersRound, X, LogOut, Cloud,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AuthScreen } from './AuthScreen'
 import { useAccount, useCloudSync } from './lib/account'
-import { challengeKey, challengesForDay, createStarterHabit, uid } from './lib/data'
+import { createStarterHabit, uid } from './lib/data'
 import {
   completionKey, completionRatio, dailyRatio, dateKey, dateRange, habitStreak, isScheduled,
   overallScore, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
@@ -29,15 +29,6 @@ const CATEGORY_ICONS: Record<Category, typeof Dumbbell> = {
 function CategoryIcon({ category, size = 18 }: { category: Category; size?: number }) {
   const Icon = CATEGORY_ICONS[category]
   return <span className="category-icon" style={{ color: CATEGORY_META[category].color, background: CATEGORY_META[category].soft }}><Icon size={size} strokeWidth={2.2} /></span>
-}
-
-function ProgressRing({ value, size = 42 }: { value: number; size?: number }) {
-  const circumference = 2 * Math.PI * 18
-  return <svg className="progress-ring" width={size} height={size} viewBox="0 0 44 44" aria-label={`${Math.round(value)}% complete`}>
-    <circle cx="22" cy="22" r="18" className="ring-track" />
-    <circle cx="22" cy="22" r="18" className="ring-value" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - value / 100)} />
-    <text x="22" y="23" textAnchor="middle">{Math.round(value)}</text>
-  </svg>
 }
 
 function RadarChart({ scores }: { scores: Record<Category, number | null> }) {
@@ -129,7 +120,7 @@ function TodayScreen({ data, setData, goHabits }: { data: AppData; setData: (upd
   const today = dateKey()
   const habits = data.habits.filter((habit) => isScheduled(habit, today))
   const ratio = habits.length ? habits.reduce((sum, habit) => sum + completionRatio(data, habit, today), 0) / habits.length : 0
-  const streaks = streaksFor(data), challenges = challengesForDay(today)
+  const streaks = streaksFor(data)
   const [adding, setAdding] = useState(false)
   const [openedAt] = useState(() => new Date())
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(openedAt)
@@ -139,22 +130,15 @@ function TodayScreen({ data, setData, goHabits }: { data: AppData; setData: (upd
     if (value <= 0) delete completions[key]; else completions[key] = { value, updatedAt: new Date().toISOString() }
     return { ...current, completions }
   })
-  const toggleChallenge = (id: string) => setData((current) => {
-    const key = challengeKey(id, today), next = { ...current.challenges }
-    if (next[key]) delete next[key]; else next[key] = { completedAt: new Date().toISOString() }
-    return { ...current, challenges: next }
-  })
   const addHabit = (draft: HabitDraft) => { setData((current) => ({ ...current, habits: [...current.habits, { id: uid(), createdDate: today, versions: [{ ...draft, effectiveDate: today }] }] })); setAdding(false) }
   return <div className="screen">
     <section className="today-heading"><div><p className="date-label">{dateLabel.toUpperCase()}</p><h1>{greeting}{data.name ? `, ${data.name}` : ''}.</h1><p>Keep the momentum alive.</p></div><div className="streak-pill"><Flame size={17} fill="currentColor" /><strong>{streaks.current}</strong></div></section>
-    <section className="daily-card"><div className="daily-card-top"><div><span className="eyebrow">TODAY'S PROGRESS</span><strong>{Math.round(ratio * 100)}%</strong></div><ProgressRing value={ratio * 100} size={58} /></div><div className="completion-track"><span style={{ width: `${ratio * 100}%` }} /></div><small>{habits.filter((habit) => completionRatio(data, habit, today) >= 1).length} of {habits.length} habits complete</small></section>
+    <section className="daily-card compact"><div className="daily-progress-line"><span className="eyebrow">TODAY</span><span>{habits.filter((habit) => completionRatio(data, habit, today) >= 1).length} / {habits.length} habits</span><strong>{Math.round(ratio * 100)}%</strong></div><div className="completion-track"><span style={{ width: `${ratio * 100}%` }} /></div></section>
     <div className="section-title"><div><h2>Daily habits</h2><span>{habits.length} scheduled</span></div><button className="icon-button accent" onClick={() => setAdding(true)} aria-label="Quick add habit"><Plus size={20} /></button></div>
     {habits.length === 0 ? <EmptyState icon={<CalendarDays />} title="Your day is wide open" body="Add a habit to start building your character." action="Add a habit" onAction={() => setAdding(true)} /> : <div className="habit-list">{habits.map((habit) => {
       const version = versionOn(habit, today)!, value = data.completions[completionKey(habit.id, today)]?.value ?? 0, complete = value >= version.target
       return <article key={habit.id} className={`habit-row ${complete ? 'complete' : ''}`}><CategoryIcon category={version.category} /><div className="habit-main"><strong>{version.name}</strong><span>{version.category} · {version.kind === 'numeric' ? `${version.target} ${version.unit}` : 'Complete once'}</span></div>{version.kind === 'numeric' && !complete && <div className="numeric-control"><button onClick={() => updateHabit(habit, Math.max(0, value - Math.max(1, Math.round(version.target / 4))))} aria-label="Decrease"><Minus size={15} /></button><span>{value}</span><button onClick={() => updateHabit(habit, Math.min(version.target, value + Math.max(1, Math.round(version.target / 4))))} aria-label="Increase"><Plus size={15} /></button></div>}<button className={`complete-button ${complete ? 'done' : ''}`} onClick={() => updateHabit(habit, complete ? 0 : version.target)} aria-label={complete ? `Undo ${version.name}` : `Complete ${version.name}`}><Check size={19} /></button></article>
     })}</div>}
-    <div className="section-title challenge-title"><div><h2>Daily challenges</h2><span>Optional · +30 XP each</span></div><Zap size={19} /></div>
-    <div className="challenge-list">{challenges.map((challenge) => { const done = Boolean(data.challenges[challengeKey(challenge.id, today)]); return <button key={challenge.id} className={`challenge-card ${done ? 'complete' : ''}`} onClick={() => toggleChallenge(challenge.id)}><CategoryIcon category={challenge.category} /><span><strong>{challenge.title}</strong><small>{challenge.detail}</small></span><span className="challenge-xp">{done ? <Check size={17} /> : '+30'}</span></button> })}</div>
     <button className="manage-link" onClick={goHabits}>Manage all habits <ChevronRight size={16} /></button>
     {adding && <Modal title="Quick add habit" onClose={() => setAdding(false)}><HabitForm onSave={addHabit} onCancel={() => setAdding(false)} /></Modal>}
   </div>
@@ -184,9 +168,22 @@ function HabitsScreen({ data, setData }: { data: AppData; setData: (updater: (da
       return <article key={habit.id} className="manage-card"><button className="manage-card-main" onClick={() => setHistoryHabit(habit)}><CategoryIcon category={version.category} /><span><strong>{version.name}</strong><small>{version.weekdays.length === 7 ? 'Every day' : `${version.weekdays.length} days/week`} · {version.kind === 'numeric' ? `${version.target} ${version.unit}` : 'Once'}</small></span><ChevronRight size={17} /></button><div className="habit-card-footer"><span><Flame size={14} /> {streak} day streak</span><div><button onClick={() => setEditing(habit)} aria-label={`Edit ${version.name}`}><Pencil size={16} /></button><button onClick={() => archive(habit)} aria-label={`Archive ${version.name}`}><Archive size={16} /></button><button onClick={() => remove(habit)} aria-label={`Delete ${version.name}`}><Trash2 size={16} /></button></div></div></article>
     })}</div>}
     {data.habits.some((habit) => habit.archivedDate) && <details className="archived"><summary>Archived habits ({data.habits.filter((habit) => habit.archivedDate).length})</summary>{data.habits.filter((habit) => habit.archivedDate).map((habit) => <div key={habit.id}><span>{versionOn(habit, shiftDate(habit.archivedDate!, -1))?.name}</span><button onClick={() => setData((current) => ({ ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, archivedDate: undefined } : item) }))}>Restore</button></div>)}</details>}
+    <HabitInsights data={data} />
     {editing && <Modal title={editing === 'new' ? 'Create a habit' : 'Edit habit'} onClose={() => setEditing(null)}><HabitForm habit={editing === 'new' ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} /></Modal>}
     {historyHabit && <HabitHistory data={data} habit={historyHabit} onClose={() => setHistoryHabit(null)} />}
   </div>
+}
+
+function HabitInsights({ data }: { data: AppData }) {
+  const streaks = streaksFor(data)
+  const week = dateRange(shiftDate(dateKey(), -6), dateKey())
+  const activity = dateRange(shiftDate(dateKey(), -34), dateKey())
+  return <section className="habit-insights">
+    <div className="section-title"><div><h2>Consistency</h2><span>Your habit history</span></div></div>
+    <section className="stats-row"><div><Flame /><strong>{streaks.current}</strong><span>Current streak</span></div><div><Gauge /><strong>{streaks.longest}</strong><span>Longest streak</span></div><div><Check /><strong>{totalCompletions(data)}</strong><span>Completions</span></div></section>
+    <section className="chart-card"><div className="card-title"><div><h2>Weekly completion</h2><span>Last 7 days</span></div><BarChart3 size={19} /></div><div className="weekly-chart">{week.map((day) => { const ratio = dailyRatio(data, day); return <div key={day}><span className="bar-value">{ratio === null ? '—' : `${Math.round(ratio * 100)}`}</span><div className="bar-track"><span style={{ height: `${Math.max(3, (ratio ?? 0) * 100)}%` }} /></div><small>{new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(new Date(`${day}T12:00:00`))}</small></div> })}</div></section>
+    <section className="chart-card"><div className="card-title"><div><h2>Activity</h2><span>Last 5 weeks</span></div><CalendarDays size={19} /></div><div className="activity-grid">{activity.map((day) => { const ratio = dailyRatio(data, day); return <div key={day} title={`${day}${ratio === null ? ': rest day' : `: ${Math.round(ratio * 100)}%`}`} className={ratio === null ? 'rest' : ratio >= 1 ? 'a4' : ratio >= .66 ? 'a3' : ratio > 0 ? 'a2' : 'a1'} /> })}</div></section>
+  </section>
 }
 
 function HabitHistory({ data, habit, onClose }: { data: AppData; habit: Habit; onClose: () => void }) {
@@ -196,16 +193,12 @@ function HabitHistory({ data, habit, onClose }: { data: AppData; habit: Habit; o
 }
 
 function ProgressScreen({ data }: { data: AppData }) {
-  const scores = scoresFor(data), streaks = streaksFor(data)
+  const scores = scoresFor(data)
   const [detail, setDetail] = useState<Category | null>(null)
-  const week = dateRange(shiftDate(dateKey(), -6), dateKey()), activity = dateRange(shiftDate(dateKey(), -34), dateKey())
   return <div className="screen progress-screen">
     <section className="page-heading"><p className="eyebrow">CHARACTER STATS</p><h1>Your progress</h1><p>Built from your last 7 days.</p></section>
     <section className="radar-card"><div className="card-noise" /><RadarChart scores={scores} /></section>
     <div className="score-grid">{CATEGORIES.map((category) => <button key={category} className="score-card" style={{ '--category': CATEGORY_META[category].color, '--soft': CATEGORY_META[category].soft } as CSSProperties} onClick={() => setDetail(category)}><CategoryIcon category={category} size={19} /><span className="score-value">{scores[category] ?? '—'}</span><span className="score-label">{category}</span><small>{scores[category] === null ? 'No data' : 'Last 7 days'}</small><ChevronRight size={15} /></button>)}</div>
-    <section className="chart-card"><div className="card-title"><div><h2>Weekly completion</h2><span>Last 7 days</span></div><BarChart3 size={19} /></div><div className="weekly-chart">{week.map((day) => { const ratio = dailyRatio(data, day); return <div key={day}><span className="bar-value">{ratio === null ? '—' : `${Math.round(ratio * 100)}`}</span><div className="bar-track"><span style={{ height: `${Math.max(3, (ratio ?? 0) * 100)}%` }} /></div><small>{new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(new Date(`${day}T12:00:00`))}</small></div> })}</div></section>
-    <section className="chart-card"><div className="card-title"><div><h2>Activity</h2><span>Last 5 weeks</span></div><CalendarDays size={19} /></div><div className="activity-grid">{activity.map((day) => { const ratio = dailyRatio(data, day); return <div key={day} title={`${day}${ratio === null ? ': rest day' : `: ${Math.round(ratio * 100)}%`}`} className={ratio === null ? 'rest' : ratio >= 1 ? 'a4' : ratio >= .66 ? 'a3' : ratio > 0 ? 'a2' : 'a1'} /> })}</div></section>
-    <section className="stats-row"><div><Flame /><strong>{streaks.current}</strong><span>Current streak</span></div><div><Gauge /><strong>{streaks.longest}</strong><span>Longest streak</span></div><div><Check /><strong>{totalCompletions(data)}</strong><span>Completions</span></div></section>
     {detail && <AttributeDetail data={data} category={detail} score={scores[detail]} onClose={() => setDetail(null)} />}
   </div>
 }

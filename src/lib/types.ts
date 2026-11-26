@@ -46,13 +46,6 @@ export interface AppData {
   challenges: Record<string, ChallengeCompletion>
 }
 
-export interface Challenge {
-  id: string
-  title: string
-  category: Category
-  detail: string
-}
-
 export type AppMode = 'real' | 'demo'
 
 export const CATEGORY_META: Record<Category, { color: string; soft: string }> = {
