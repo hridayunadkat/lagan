@@ -35,10 +35,10 @@ describe('LAGAN scoring', () => {
     expect(scoresFor(state, today).Mental).toBe(7)
   })
 
-  it('caps numeric progress at 100 percent', () => {
+  it('normalizes a new daily habit against its full weekly schedule', () => {
     const state = data([habit({ createdDate: today, versions: [{ ...habit().versions[0], effectiveDate: today }] })])
     state.completions[completionKey('habit-1', today)] = { value: 100, updatedAt: '' }
-    expect(scoresFor(state, today).Mental).toBe(100)
+    expect(scoresFor(state, today).Mental).toBe(14)
   })
 
   it('derives XP without duplicate rewards and removes it on undo', () => {

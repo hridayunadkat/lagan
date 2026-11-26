@@ -63,7 +63,7 @@ async function refreshSession() {
     })
     Keychain.set(REFRESH_TOKEN_KEY, session.refresh_token)
     return session
-  } catch (error) {
+  } catch {
     Keychain.remove(REFRESH_TOKEN_KEY)
     if (config.runsInWidget) throw new Error("Session expired. Open the LAGAN script to sign in again")
     return signIn()

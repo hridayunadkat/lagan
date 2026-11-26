@@ -44,22 +44,42 @@ export const completionRatio = (data: AppData, habit: Habit, day: string) => {
   return Math.min(1, Math.max(0, (completion?.value ?? 0) / version.target))
 }
 
-export const scoresFor = (data: AppData, today = dateKey()): Record<Category, number | null> => {
+export const scoreBreakdownFor = (data: AppData, category: Category, today = dateKey()) => {
   const days = dateRange(shiftDate(today, -6), today)
-  return Object.fromEntries(
-    CATEGORIES.map((category) => {
-      let completed = 0
-      let scheduled = 0
-      for (const day of days) {
-        for (const habit of data.habits) {
-          const version = versionOn(habit, day)
-          if (version?.category !== category || !isScheduled(habit, day)) continue
-          scheduled += 1
-          completed += completionRatio(data, habit, day)
+  let completed = 0
+  let scheduled = 0
+
+  for (const habit of data.habits) {
+    let habitCompleted = 0
+    let habitScheduled = 0
+    for (const day of days) {
+      const version = versionOn(habit, day)
+      if (version?.category !== category || !isScheduled(habit, day)) continue
+      habitScheduled += 1
+      habitCompleted += completionRatio(data, habit, day)
+    }
+
+    if (habitScheduled > 0) {
+      const firstCategoryVersion = [...habit.versions]
+        .filter((version) => version.category === category && version.effectiveDate <= today)
+        .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]
+      if (firstCategoryVersion && firstCategoryVersion.effectiveDate > days[0]) {
+        for (const day of days) {
+          if (day >= firstCategoryVersion.effectiveDate) break
+          if (firstCategoryVersion.weekdays.includes(fromDateKey(day).getDay())) habitScheduled += 1
         }
       }
-      return [category, scheduled ? Math.round((completed / scheduled) * 100) : null]
-    }),
+      scheduled += habitScheduled
+      completed += habitCompleted
+    }
+  }
+
+  return { completed, scheduled, score: scheduled ? Math.round((completed / scheduled) * 100) : null }
+}
+
+export const scoresFor = (data: AppData, today = dateKey()): Record<Category, number | null> => {
+  return Object.fromEntries(
+    CATEGORIES.map((category) => [category, scoreBreakdownFor(data, category, today).score]),
   ) as Record<Category, number | null>
 }
 

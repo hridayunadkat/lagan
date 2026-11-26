@@ -8,7 +8,7 @@ export const HABIT_PRESETS = [
   { name: 'Read', category: 'Mental', kind: 'numeric', target: 20, unit: 'minutes' },
   { name: 'Learn Gujarati', category: 'Mental', kind: 'numeric', target: 15, unit: 'minutes' },
   { name: 'Play a chess game', category: 'Mental', kind: 'checkbox', target: 1, unit: 'game' },
-  { name: 'Journal', category: 'Mental', kind: 'checkbox', target: 1, unit: 'entry' },
+  { name: 'Journal', category: 'Discipline', kind: 'checkbox', target: 1, unit: 'entry' },
 ] as const
 
 export const createPresetHabit = (preset: (typeof HABIT_PRESETS)[number], createdDate = dateKey()): Habit => ({
@@ -53,7 +53,7 @@ export const createStarterHabit = (category: Category, createdDate = dateKey()):
 
 export const emptyData = (): AppData => ({
   version: 1,
-  defaultsVersion: 1,
+  defaultsVersion: 2,
   name: '',
   onboarded: false,
   focusAreas: [],
@@ -71,7 +71,7 @@ export const createDemoData = (): AppData => {
   ]
   const data: AppData = {
     version: 1,
-    defaultsVersion: 1,
+    defaultsVersion: 2,
     name: 'Alex',
     onboarded: true,
     focusAreas: [...CATEGORIES],

@@ -10,7 +10,7 @@ import { useAccount, useCloudSync } from './lib/account'
 import { createPresetHabit, HABIT_PRESETS, uid } from './lib/data'
 import {
   completionKey, completionRatio, dailyRatio, dateKey, dateRange, habitStreak, isScheduled,
-  overallScore, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
+  overallScore, scoreBreakdownFor, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
 } from './lib/scoring'
 import { useLevelStore } from './lib/store'
 import {
@@ -39,7 +39,15 @@ function RadarChart({ scores }: { scores: Record<Category, number | null> }) {
     return [center + Math.cos(angle) * radius * amount, center + Math.sin(angle) * radius * amount]
   }
   const pointsFor = (amount: number) => CATEGORIES.map((_, index) => pointAt(index, amount).join(',')).join(' ')
-  const dataPoints = CATEGORIES.map((category, index) => pointAt(index, (scores[category] ?? 0) / 100).join(',')).join(' ')
+  const dataPoints = CATEGORIES.map((category, index) => pointAt(index, .34 + ((scores[category] ?? 0) / 100) * .66))
+  const smoothPath = dataPoints.map((point, index) => {
+    const previous = dataPoints[(index - 1 + dataPoints.length) % dataPoints.length]
+    const next = dataPoints[(index + 1) % dataPoints.length]
+    const afterNext = dataPoints[(index + 2) % dataPoints.length]
+    const control1 = [point[0] + (next[0] - previous[0]) * .12, point[1] + (next[1] - previous[1]) * .12]
+    const control2 = [next[0] - (afterNext[0] - point[0]) * .12, next[1] - (afterNext[1] - point[1]) * .12]
+    return `${index === 0 ? `M ${point[0]} ${point[1]}` : ''} C ${control1[0]} ${control1[1]}, ${control2[0]} ${control2[1]}, ${next[0]} ${next[1]}`
+  }).join(' ') + ' Z'
   const overall = overallScore(scores)
   return <svg className="radar" viewBox="0 0 320 320" role="img" aria-label={`Overall attribute score ${overall} out of 100`}>
     <defs>
@@ -48,7 +56,7 @@ function RadarChart({ scores }: { scores: Record<Category, number | null> }) {
     </defs>
     {[.25, .5, .75, 1].map((level) => <polygon key={level} points={pointsFor(level)} className="radar-grid" />)}
     {CATEGORIES.map((category, index) => { const [x, y] = pointAt(index, 1); return <line key={category} x1={center} y1={center} x2={x} y2={y} className="radar-axis" /> })}
-    <polygon points={dataPoints} className="radar-data" filter="url(#radarGlow)" />
+    <path d={smoothPath} className="radar-data" filter="url(#radarGlow)" />
     {CATEGORIES.map((category, index) => {
       const [x, y] = pointAt(index, 1.21)
       return <g key={category}><circle cx={x} cy={y - 4} r="3" fill={CATEGORY_META[category].color} /><text x={x} y={y + 10} className="radar-label" textAnchor="middle">{category.toUpperCase()}</text></g>
@@ -96,7 +104,7 @@ function Onboarding({ onFinish, onDemo }: { onFinish: (data: AppData) => void; o
   const finish = (skip = false) => {
     const today = dateKey()
     const selected = skip ? HABIT_PRESETS : HABIT_PRESETS.filter((preset) => starters.includes(preset.name))
-    onFinish({ version: 1, defaultsVersion: 1, name: skip ? '' : name.trim(), onboarded: true, focusAreas: skip ? [] : focus, habits: selected.map((preset) => createPresetHabit(preset, today)), completions: {}, challenges: {} })
+    onFinish({ version: 1, defaultsVersion: 2, name: skip ? '' : name.trim(), onboarded: true, focusAreas: skip ? [] : focus, habits: selected.map((preset) => createPresetHabit(preset, today)), completions: {}, challenges: {} })
   }
   return <main className="onboarding">
     <div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><p className="eyebrow">BUILD YOUR CHARACTER</p><h1>Level up your<br />real life.</h1>
@@ -216,9 +224,8 @@ function ProgressScreen({ data }: { data: AppData }) {
 function AttributeDetail({ data, category, score, onClose }: { data: AppData; category: Category; score: number | null; onClose: () => void }) {
   const today = dateKey(), days = dateRange(shiftDate(today, -6), today)
   const habits = data.habits.filter((habit) => days.some((day) => versionOn(habit, day)?.category === category && isScheduled(habit, day)))
-  let scheduled = 0, earned = 0
-  habits.forEach((habit) => days.forEach((day) => { if (versionOn(habit, day)?.category === category && isScheduled(habit, day)) { scheduled += 1; earned += completionRatio(data, habit, day) } }))
-  return <Modal title={category} onClose={onClose}><div className="attribute-hero" style={{ '--category': CATEGORY_META[category].color, '--soft': CATEGORY_META[category].soft } as CSSProperties}><CategoryIcon category={category} size={24} /><strong>{score ?? '—'}</strong><span>{score === null ? 'No scheduled data' : 'Consistency score'}</span></div><p className="calculation-copy">Score = completed target progress across scheduled {category.toLowerCase()} habits in the last 7 calendar days.</p><div className="calculation"><span><strong>{earned.toFixed(1)}</strong> targets completed</span><span>÷</span><span><strong>{scheduled}</strong> targets scheduled</span><span>=</span><strong>{score ?? 0}%</strong></div><p className="field-label">CONTRIBUTING HABITS</p>{habits.length ? <div className="detail-habits">{habits.map((habit) => <div key={habit.id}><CategoryIcon category={category} /><span>{versionOn(habit, today)?.name ?? habit.versions.at(-1)?.name}</span></div>)}</div> : <p className="muted">No habits were scheduled for this attribute.</p>}<button className="button primary full" onClick={onClose}>Done</button></Modal>
+  const breakdown = scoreBreakdownFor(data, category, today)
+  return <Modal title={category} onClose={onClose}><div className="attribute-hero" style={{ '--category': CATEGORY_META[category].color, '--soft': CATEGORY_META[category].soft } as CSSProperties}><CategoryIcon category={category} size={24} /><strong>{score ?? '—'}</strong><span>{score === null ? 'No scheduled data' : 'Consistency score'}</span></div><p className="calculation-copy">Score = completed target progress across the last 7 days. New habits are normalized against their full weekly schedule after their first scheduled day.</p><div className="calculation"><span><strong>{breakdown.completed.toFixed(1)}</strong> targets completed</span><span>÷</span><span><strong>{breakdown.scheduled}</strong> weekly opportunities</span><span>=</span><strong>{score ?? 0}%</strong></div><p className="field-label">CONTRIBUTING HABITS</p>{habits.length ? <div className="detail-habits">{habits.map((habit) => <div key={habit.id}><CategoryIcon category={category} /><span>{versionOn(habit, today)?.name ?? habit.versions.at(-1)?.name}</span></div>)}</div> : <p className="muted">No habits were scheduled for this attribute.</p>}<button className="button primary full" onClick={onClose}>Done</button></Modal>
 }
 
 function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabits, accountEmail, username, syncState, onSignOut }: { data: AppData; setData: (updater: (data: AppData) => AppData) => void; mode: 'real' | 'demo'; onDemo: () => void; onFresh: () => void; onImport: (raw: string) => void; goHabits: () => void; accountEmail?: string; username: string; syncState: 'idle' | 'loading' | 'saved' | 'error'; onSignOut: () => void }) {
@@ -274,12 +281,21 @@ export default function LevelApp() {
     window.scrollTo(0, 0)
   }, [tab])
   useEffect(() => {
-    if (!data.onboarded || data.defaultsVersion === 1) return
+    if (!data.onboarded || (data.defaultsVersion ?? 0) >= 2) return
     queueMicrotask(() => setData((current) => {
-      if (!current.onboarded || current.defaultsVersion === 1) return current
+      if (!current.onboarded || (current.defaultsVersion ?? 0) >= 2) return current
       const names = new Set(current.habits.map((habit) => (versionOn(habit, dateKey()) ?? habit.versions.at(-1))?.name.toLowerCase()))
       const missing = HABIT_PRESETS.filter((preset) => !names.has(preset.name.toLowerCase()))
-      return { ...current, defaultsVersion: 1, habits: [...current.habits, ...missing.map((preset) => createPresetHabit(preset))] }
+      const today = dateKey()
+      const habits = current.habits.map((habit) => {
+        const version = versionOn(habit, today) ?? habit.versions.at(-1)
+        if (version?.name.toLowerCase() !== 'journal' || version.category === 'Discipline') return habit
+        return {
+          ...habit,
+          versions: [...habit.versions.filter((item) => item.effectiveDate !== today), { ...version, effectiveDate: today, category: 'Discipline' as const }],
+        }
+      })
+      return { ...current, defaultsVersion: 2, habits: [...habits, ...missing.map((preset) => createPresetHabit(preset))] }
     }))
   }, [data.defaultsVersion, data.onboarded, setData])
   if (loading) return <div className="auth-loading"><div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><span>Loading your character…</span></div>
