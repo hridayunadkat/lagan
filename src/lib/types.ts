@@ -38,6 +38,7 @@ export interface ChallengeCompletion {
 
 export interface AppData {
   version: 1
+  defaultsVersion?: number
   name: string
   onboarded: boolean
   focusAreas: Category[]

@@ -11,6 +11,20 @@ export const HABIT_PRESETS = [
   { name: 'Journal', category: 'Mental', kind: 'checkbox', target: 1, unit: 'entry' },
 ] as const
 
+export const createPresetHabit = (preset: (typeof HABIT_PRESETS)[number], createdDate = dateKey()): Habit => ({
+  id: uid(),
+  createdDate,
+  versions: [{
+    effectiveDate: createdDate,
+    name: preset.name,
+    category: preset.category,
+    weekdays: [0, 1, 2, 3, 4, 5, 6],
+    kind: preset.kind,
+    target: preset.target,
+    unit: preset.unit,
+  }],
+})
+
 const STARTERS: Record<Category, { name: string; kind: 'checkbox' | 'numeric'; target: number; unit: string }> = {
   Physical: { name: 'Exercise', kind: 'numeric', target: 30, unit: 'minutes' },
   Social: { name: 'Reach out to a friend', kind: 'checkbox', target: 1, unit: 'time' },
@@ -39,6 +53,7 @@ export const createStarterHabit = (category: Category, createdDate = dateKey()):
 
 export const emptyData = (): AppData => ({
   version: 1,
+  defaultsVersion: 1,
   name: '',
   onboarded: false,
   focusAreas: [],
@@ -50,9 +65,13 @@ export const emptyData = (): AppData => ({
 export const createDemoData = (): AppData => {
   const today = dateKey()
   const created = shiftDate(today, -34)
-  const habits = CATEGORIES.map((category) => createStarterHabit(category, created))
+  const habits = [
+    ...CATEGORIES.filter((category) => category !== 'Physical' && category !== 'Mental').map((category) => createStarterHabit(category, created)),
+    ...HABIT_PRESETS.map((preset) => createPresetHabit(preset, created)),
+  ]
   const data: AppData = {
     version: 1,
+    defaultsVersion: 1,
     name: 'Alex',
     onboarded: true,
     focusAreas: [...CATEGORIES],
@@ -67,7 +86,7 @@ export const createDemoData = (): AppData => {
       const version = habit.versions[0]
       const signal = ((offset * 17 + index * 23 + 101) % 100 + 100) % 100
       const thresholds = [78, 58, 86, 68, 48, 72]
-      if (signal < thresholds[index]) {
+      if (signal < thresholds[index % thresholds.length]) {
         const partial = version.kind === 'numeric' && signal % 5 === 0 ? 0.6 : 1
         data.completions[`${habit.id}:${day}`] = {
           value: version.target * partial,

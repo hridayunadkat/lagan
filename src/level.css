@@ -30,7 +30,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .app-shell, .onboarding, .auth-screen { width: 100%; max-width: 480px; min-height: 100svh; margin: 0 auto; background: #08090a; position: relative; overflow: hidden; }
 .app-shell > main { padding: 70px 18px 112px; position: relative; }
 .screen { animation: screen-in .28s ease-out; }
-@keyframes screen-in { from { opacity: 0; transform: translateY(5px); } }
+@keyframes screen-in { from { opacity: 0; } }
 
 h1, h2, p { margin: 0; }
 h1 { font-size: 32px; line-height: 1.08; letter-spacing: -1.4px; }

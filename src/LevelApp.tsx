@@ -7,7 +7,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AuthScreen } from './AuthScreen'
 import { useAccount, useCloudSync } from './lib/account'
-import { createStarterHabit, HABIT_PRESETS, uid } from './lib/data'
+import { createPresetHabit, HABIT_PRESETS, uid } from './lib/data'
 import {
   completionKey, completionRatio, dailyRatio, dateKey, dateRange, habitStreak, isScheduled,
   overallScore, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
@@ -91,19 +91,19 @@ function HabitForm({ habit, onSave, onCancel }: { habit?: Habit; onSave: (draft:
 function Onboarding({ onFinish, onDemo }: { onFinish: (data: AppData) => void; onDemo: () => void }) {
   const [name, setName] = useState('')
   const [focus, setFocus] = useState<Category[]>(['Physical', 'Discipline', 'Mental'])
-  const [starters, setStarters] = useState<Category[]>(['Physical', 'Mental'])
+  const [starters, setStarters] = useState<string[]>(() => HABIT_PRESETS.map((preset) => preset.name))
   const toggle = (list: Category[], item: Category, setter: (next: Category[]) => void) => setter(list.includes(item) ? list.filter((value) => value !== item) : [...list, item])
   const finish = (skip = false) => {
     const today = dateKey()
-    onFinish({ version: 1, name: skip ? '' : name.trim(), onboarded: true, focusAreas: skip ? [] : focus, habits: (skip ? [] : starters).map((category) => createStarterHabit(category, today)), completions: {}, challenges: {} })
+    const selected = skip ? HABIT_PRESETS : HABIT_PRESETS.filter((preset) => starters.includes(preset.name))
+    onFinish({ version: 1, defaultsVersion: 1, name: skip ? '' : name.trim(), onboarded: true, focusAreas: skip ? [] : focus, habits: selected.map((preset) => createPresetHabit(preset, today)), completions: {}, challenges: {} })
   }
-  const starterName = (category: Category) => category === 'Physical' ? 'Exercise for 30 minutes' : category === 'Social' ? 'Reach out to a friend' : category === 'Discipline' ? 'Complete a focused work session' : category === 'Mental' ? 'Read for 20 minutes' : category === 'Finance' ? 'Review spending' : 'Take one step toward a goal'
   return <main className="onboarding">
     <div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><p className="eyebrow">BUILD YOUR CHARACTER</p><h1>Level up your<br />real life.</h1>
     <p className="onboarding-copy">Turn daily actions into visible progress across the six attributes that shape who you become.</p>
     <label className="field-label onboarding-name">WHAT SHOULD WE CALL YOU?<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
     <span className="field-label">CHOOSE YOUR FOCUS</span><div className="choice-grid">{CATEGORIES.map((category) => <button key={category} className={focus.includes(category) ? 'selected' : ''} onClick={() => toggle(focus, category, setFocus)}><CategoryIcon category={category} />{category}<Check size={15} /></button>)}</div>
-    <span className="field-label starter-label">START WITH THESE HABITS</span><div className="starter-list">{CATEGORIES.map((category) => <button key={category} className={starters.includes(category) ? 'selected' : ''} onClick={() => toggle(starters, category, setStarters)}><span><CategoryIcon category={category} /><span><strong>{starterName(category)}</strong><small>{category}</small></span></span><span className="check-box"><Check size={15} /></span></button>)}</div>
+    <span className="field-label starter-label">YOUR DEFAULT HABITS</span><div className="starter-list">{HABIT_PRESETS.map((preset) => <button key={preset.name} className={starters.includes(preset.name) ? 'selected' : ''} onClick={() => setStarters((current) => current.includes(preset.name) ? current.filter((name) => name !== preset.name) : [...current, preset.name])}><span><CategoryIcon category={preset.category} /><span><strong>{preset.name}</strong><small>{preset.kind === 'numeric' ? `${preset.target} ${preset.unit}` : 'Complete once'} · {preset.category}</small></span></span><span className="check-box"><Check size={15} /></span></button>)}</div>
     <button className="button primary full" onClick={() => finish()}>Start leveling up <ChevronRight size={18} /></button><button className="button demo full" onClick={onDemo}><Sparkles size={17} /> Try demo</button><button className="text-button" onClick={() => finish(true)}>Skip for now</button>
   </main>
 }
@@ -270,6 +270,18 @@ export default function LevelApp() {
   useEffect(() => {
     if (session && mode !== 'real') setMode('real')
   }, [mode, session, setMode])
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [tab])
+  useEffect(() => {
+    if (!data.onboarded || data.defaultsVersion === 1) return
+    queueMicrotask(() => setData((current) => {
+      if (!current.onboarded || current.defaultsVersion === 1) return current
+      const names = new Set(current.habits.map((habit) => (versionOn(habit, dateKey()) ?? habit.versions.at(-1))?.name.toLowerCase()))
+      const missing = HABIT_PRESETS.filter((preset) => !names.has(preset.name.toLowerCase()))
+      return { ...current, defaultsVersion: 1, habits: [...current.habits, ...missing.map((preset) => createPresetHabit(preset))] }
+    }))
+  }, [data.defaultsVersion, data.onboarded, setData])
   if (loading) return <div className="auth-loading"><div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><span>Loading your character…</span></div>
   if (!session && mode !== 'demo') return <AuthScreen onDemo={refreshDemo} />
   if (!data.onboarded && mode === 'real') return <Onboarding onFinish={setData} onDemo={refreshDemo} />
