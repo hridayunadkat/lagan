@@ -1,7 +1,7 @@
 import {
   Archive, ArrowLeft, BarChart3, CalendarDays, Check, ChevronRight, CircleDollarSign,
-  Download, Dumbbell, Flame, Focus, Gauge, Home, Lightbulb, Minus, Pencil, Plus,
-  RotateCcw, Settings, ShieldCheck, Sparkles, Target, Trash2, TrendingUp, Upload,
+  Brain, DoorStairwell, Download, Dumbbell, Flame, Focus, Gauge, Home, Minus, Pencil, Plus,
+  RotateCcw, Settings, Sparkles, Target, Trash2, Upload,
   UserRound, UsersRound, X, LogOut, Cloud, History as HistoryIcon, RefreshCw,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
@@ -9,12 +9,20 @@ import { AuthScreen } from './AuthScreen'
 import { useAccount, useCloudSync } from './lib/account'
 import { createPresetHabit, HABIT_PRESETS, uid } from './lib/data'
 import {
+  addHabit as addHabitToData,
+  archiveHabit as archiveHabitInData,
+  deleteHabit as deleteHabitFromData,
+  editHabit as editHabitInData,
+  restartHabit as restartHabitInData,
+  type HabitDraft,
+} from './lib/habits'
+import {
   completionKey, completionRatio, dailyRatio, dateKey, dateRange, habitStreak, isScheduled,
   overallScore, scoreBreakdownFor, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
 } from './lib/scoring'
-import { useLevelStore } from './lib/store'
+import { isAppData, useLevelStore } from './lib/store'
 import {
-  CATEGORIES, CATEGORY_META, type AppData, type Category, type Habit, type HabitKind,
+  CATEGORIES, CATEGORY_META, type AppData, type Category, type Habit,
 } from './lib/types'
 
 type Tab = 'home' | 'today' | 'history' | 'habits' | 'settings'
@@ -22,8 +30,8 @@ const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const FULL_WEEK = [0, 1, 2, 3, 4, 5, 6]
 
 const CATEGORY_ICONS: Record<Category, typeof Dumbbell> = {
-  Physical: Dumbbell, Social: UsersRound, Discipline: ShieldCheck,
-  Mental: Lightbulb, Finance: CircleDollarSign, Ambition: TrendingUp,
+  Physical: Dumbbell, Social: UsersRound, Discipline: Pencil,
+  Mental: Brain, Finance: CircleDollarSign, Ambition: DoorStairwell,
 }
 
 function CategoryIcon({ category, size = 18 }: { category: Category; size?: number }) {
@@ -59,7 +67,8 @@ function RadarChart({ scores }: { scores: Record<Category, number | null> }) {
     <path d={smoothPath} className="radar-data" filter="url(#radarGlow)" />
     {CATEGORIES.map((category, index) => {
       const [x, y] = pointAt(index, 1.21)
-      return <g key={category}><circle cx={x} cy={y - 4} r="3" fill={CATEGORY_META[category].color} /><text x={x} y={y + 10} className="radar-label" textAnchor="middle">{category.toUpperCase()}</text></g>
+      const Icon = CATEGORY_ICONS[category]
+      return <Icon key={category} x={x - 9} y={y - 9} width={18} height={18} color={CATEGORY_META[category].color} strokeWidth={2.4} aria-label={category} />
     })}
     <circle cx={center} cy={center} r="38" className="radar-center" />
     <text x={center} y={center + 5} className="radar-score" textAnchor="middle">{overall}</text>
@@ -74,8 +83,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
     </section>
   </div>
 }
-
-interface HabitDraft { name: string; category: Category; weekdays: number[]; kind: HabitKind; target: number; unit: string }
 
 function HabitForm({ habit, onSave, onCancel }: { habit?: Habit; onSave: (draft: HabitDraft) => void; onCancel: () => void }) {
   const current = habit ? versionOn(habit, dateKey()) ?? habit.versions[habit.versions.length - 1] : undefined
@@ -126,20 +133,39 @@ function EmptyState({ icon, title, body, action, onAction }: { icon: ReactNode; 
 }
 
 function TodayScreen({ data, setData, goHabits }: { data: AppData; setData: (updater: (data: AppData) => AppData) => void; goHabits: () => void }) {
-  const today = dateKey()
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const refreshClock = () => setNow(new Date())
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshClock()
+    }
+    const interval = window.setInterval(refreshClock, 60_000)
+    window.addEventListener('focus', refreshClock)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refreshClock)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [])
+  const today = dateKey(now)
   const habits = data.habits.filter((habit) => isScheduled(habit, today))
   const ratio = habits.length ? habits.reduce((sum, habit) => sum + completionRatio(data, habit, today), 0) / habits.length : 0
   const streaks = streaksFor(data)
   const [adding, setAdding] = useState(false)
-  const [openedAt] = useState(() => new Date())
-  const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(openedAt)
-  const greeting = openedAt.getHours() < 12 ? 'Good morning' : openedAt.getHours() < 18 ? 'Good afternoon' : 'Good evening'
+  const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(now)
+  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'
   const updateHabit = (habit: Habit, value: number) => setData((current) => {
-    const key = completionKey(habit.id, today), completions = { ...current.completions }
+    const actionDay = dateKey()
+    const key = completionKey(habit.id, actionDay), completions = { ...current.completions }
     if (value <= 0) delete completions[key]; else completions[key] = { value, updatedAt: new Date().toISOString() }
     return { ...current, completions }
   })
-  const addHabit = (draft: HabitDraft) => { setData((current) => ({ ...current, habits: [...current.habits, { id: uid(), createdDate: today, versions: [{ ...draft, effectiveDate: today }] }] })); setAdding(false) }
+  const addHabit = (draft: HabitDraft) => {
+    const actionDay = dateKey()
+    setData((current) => addHabitToData(current, draft, actionDay, uid()))
+    setAdding(false)
+  }
   return <div className="screen">
     <section className="today-heading"><div><p className="date-label">{dateLabel.toUpperCase()}</p><h1>{greeting}{data.name ? `, ${data.name}` : ''}.</h1><p>Keep the momentum alive.</p></div><div className="streak-pill"><Flame size={17} fill="currentColor" /><strong>{streaks.current}</strong></div></section>
     <section className="daily-card compact"><div className="daily-progress-line"><span className="eyebrow">TODAY</span><span>{habits.filter((habit) => completionRatio(data, habit, today) >= 1).length} / {habits.length} habits</span><strong>{Math.round(ratio * 100)}%</strong></div><div className="completion-track"><span style={{ width: `${ratio * 100}%` }} /></div></section>
@@ -160,13 +186,24 @@ function HabitsScreen({ data, setData }: { data: AppData; setData: (updater: (da
   const filtered = data.habits.filter((habit) => !habit.archivedDate).filter((habit) => filter === 'All' || versionOn(habit, dateKey())?.category === filter)
   const save = (draft: HabitDraft) => {
     const today = dateKey()
-    setData((current) => ({ ...current, habits: editing && editing !== 'new' ? current.habits.map((habit) => habit.id === editing.id ? { ...habit, versions: [...habit.versions.filter((version) => version.effectiveDate !== today), { ...draft, effectiveDate: today }] } : habit) : [...current.habits, { id: uid(), createdDate: today, versions: [{ ...draft, effectiveDate: today }] }] }))
+    setData((current) => editing && editing !== 'new'
+      ? editHabitInData(current, editing.id, draft, today)
+      : addHabitToData(current, draft, today, uid()))
     setEditing(null)
   }
-  const archive = (habit: Habit) => { if (confirm('Archive this habit? Its history will be kept.')) setData((current) => ({ ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, archivedDate: dateKey() } : item) })) }
+  const archive = (habit: Habit) => {
+    if (!confirm('Archive this habit? Its history will be kept.')) return
+    setData((current) => archiveHabitInData(current, habit.id, dateKey()))
+    setHistoryHabit(null)
+  }
   const remove = (habit: Habit) => {
     if (!confirm('Permanently delete this habit and its completion history?')) return
-    setData((current) => ({ ...current, habits: current.habits.filter((item) => item.id !== habit.id), completions: Object.fromEntries(Object.entries(current.completions).filter(([key]) => !key.startsWith(`${habit.id}:`))) }))
+    setData((current) => deleteHabitFromData(current, habit.id))
+    setHistoryHabit(null)
+  }
+  const edit = (habit: Habit) => {
+    setHistoryHabit(null)
+    setEditing(habit)
   }
   return <div className="screen">
     <section className="page-heading"><p className="eyebrow">YOUR ROUTINE</p><h1>Habits</h1><p>Small actions. Permanent upgrades.</p></section>
@@ -174,11 +211,11 @@ function HabitsScreen({ data, setData }: { data: AppData; setData: (updater: (da
     <div className="section-title"><div><h2>Active habits</h2><span>{filtered.length} shown</span></div><button className="icon-button accent" onClick={() => setEditing('new')} aria-label="Create habit"><Plus size={20} /></button></div>
     {filtered.length === 0 ? <EmptyState icon={<Target />} title="No habits here yet" body={filter === 'All' ? 'Create your first repeatable action.' : `Add a ${filter.toLowerCase()} habit to build this attribute.`} action="Create habit" onAction={() => setEditing('new')} /> : <div className="manage-list">{filtered.map((habit) => {
       const version = versionOn(habit, dateKey())!, streak = habitStreak(data, habit)
-      return <article key={habit.id} className="manage-card"><button className="manage-card-main" onClick={() => setHistoryHabit(habit)}><CategoryIcon category={version.category} /><span><strong>{version.name}</strong><small>{version.weekdays.length === 7 ? 'Every day' : `${version.weekdays.length} days/week`} · {version.kind === 'numeric' ? `${version.target} ${version.unit}` : 'Once'}</small></span><ChevronRight size={17} /></button><div className="habit-card-footer"><span><Flame size={14} /> {streak} day streak</span><div><button onClick={() => setEditing(habit)} aria-label={`Edit ${version.name}`}><Pencil size={16} /></button><button onClick={() => archive(habit)} aria-label={`Archive ${version.name}`}><Archive size={16} /></button><button onClick={() => remove(habit)} aria-label={`Delete ${version.name}`}><Trash2 size={16} /></button></div></div></article>
+      return <article key={habit.id} className="manage-card"><button className="manage-card-main" onClick={() => setHistoryHabit(habit)}><CategoryIcon category={version.category} /><span><strong>{version.name}</strong><small>{version.weekdays.length === 7 ? 'Every day' : `${version.weekdays.length} days/week`} · {version.kind === 'numeric' ? `${version.target} ${version.unit}` : 'Once'}</small></span><ChevronRight size={17} /></button><div className="habit-card-footer"><span><Flame size={14} /> {streak} day streak</span><div><button onClick={() => edit(habit)} aria-label={`Edit ${version.name}`}><Pencil size={14} /> Edit</button><button onClick={() => archive(habit)} aria-label={`Archive ${version.name}`}><Archive size={14} /> Archive</button><button onClick={() => remove(habit)} aria-label={`Delete ${version.name}`}><Trash2 size={14} /> Delete</button></div></div></article>
     })}</div>}
-    {data.habits.some((habit) => habit.archivedDate) && <details className="archived"><summary>Archived habits ({data.habits.filter((habit) => habit.archivedDate).length})</summary>{data.habits.filter((habit) => habit.archivedDate).map((habit) => <div key={habit.id}><span>{versionOn(habit, shiftDate(habit.archivedDate!, -1))?.name}</span><button onClick={() => setData((current) => ({ ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, archivedDate: undefined } : item) }))}>Restore</button></div>)}</details>}
+    {data.habits.some((habit) => habit.archivedDate) && <details className="archived"><summary>Archived habits ({data.habits.filter((habit) => habit.archivedDate).length})</summary>{data.habits.filter((habit) => habit.archivedDate).map((habit) => <div key={habit.id}><span>{versionOn(habit, shiftDate(habit.archivedDate!, -1))?.name}</span><span><button onClick={() => setData((current) => restartHabitInData(current, habit.id, dateKey(), uid()))}>Restart</button><button className="delete" onClick={() => remove(habit)}>Delete</button></span></div>)}</details>}
     {editing && <Modal title={editing === 'new' ? 'Create a habit' : 'Edit habit'} onClose={() => setEditing(null)}><HabitForm habit={editing === 'new' ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} /></Modal>}
-    {historyHabit && <HabitHistory data={data} habit={historyHabit} onClose={() => setHistoryHabit(null)} />}
+    {historyHabit && <HabitHistory data={data} habit={historyHabit} onClose={() => setHistoryHabit(null)} onEdit={() => edit(historyHabit)} onDelete={() => remove(historyHabit)} />}
   </div>
 }
 
@@ -204,10 +241,16 @@ function HistoryScreen({ data }: { data: AppData }) {
   </div>
 }
 
-function HabitHistory({ data, habit, onClose }: { data: AppData; habit: Habit; onClose: () => void }) {
+function HabitHistory({ data, habit, onClose, onEdit, onDelete }: {
+  data: AppData
+  habit: Habit
+  onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
   const current = versionOn(habit, dateKey()) ?? habit.versions[habit.versions.length - 1]
   const days = dateRange(shiftDate(dateKey(), -27), dateKey())
-  return <Modal title={current.name} onClose={onClose}><div className="history-summary"><CategoryIcon category={current.category} size={22} /><div><strong>{habitStreak(data, habit)} day streak</strong><span>Current run</span></div></div><p className="field-label">LAST 28 DAYS</p><div className="history-grid">{days.map((day) => { const scheduled = isScheduled(habit, day), ratio = completionRatio(data, habit, day); return <div key={day} title={`${day}: ${scheduled ? `${Math.round(ratio * 100)}%` : 'not scheduled'}`} className={!scheduled ? 'empty' : ratio >= 1 ? 'done' : ratio > 0 ? 'partial' : 'missed'} /> })}</div><div className="history-legend"><span><i className="done" />Complete</span><span><i className="partial" />Partial</span><span><i className="missed" />Missed</span></div><button className="button primary full" onClick={onClose}>Done</button></Modal>
+  return <Modal title={current.name} onClose={onClose}><div className="history-summary"><CategoryIcon category={current.category} size={22} /><div><strong>{habitStreak(data, habit)} day streak</strong><span>Current run</span></div></div><p className="field-label">LAST 28 DAYS</p><div className="history-grid">{days.map((day) => { const scheduled = isScheduled(habit, day), ratio = completionRatio(data, habit, day); return <div key={day} title={`${day}: ${scheduled ? `${Math.round(ratio * 100)}%` : 'not scheduled'}`} className={!scheduled ? 'empty' : ratio >= 1 ? 'done' : ratio > 0 ? 'partial' : 'missed'} /> })}</div><div className="history-legend"><span><i className="done" />Complete</span><span><i className="partial" />Partial</span><span><i className="missed" />Missed</span></div><div className="habit-history-actions"><button className="button ghost" onClick={onEdit}><Pencil size={15} /> Edit habit</button><button className="button danger" onClick={onDelete}><Trash2 size={15} /> Delete</button></div><button className="button primary full" onClick={onClose}>Done</button></Modal>
 }
 
 function ProgressScreen({ data }: { data: AppData }) {
@@ -232,19 +275,29 @@ function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabi
   const fileRef = useRef<HTMLInputElement>(null), [name, setName] = useState(data.name)
   const [refreshing, setRefreshing] = useState(false)
   const exportData = () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `lagan-backup-${dateKey()}.json`; link.click(); URL.revokeObjectURL(link.href) }
-  const importFile = async (file?: File) => { if (!file) return; try { onImport(await file.text()) } catch (error) { alert(error instanceof Error ? error.message : 'Could not import this file.') } if (fileRef.current) fileRef.current.value = '' }
-  const reset = () => { if (confirm('Reset LAGAN? This permanently removes your real habits, history, and XP from this device.')) onFresh() }
+  const importFile = async (file?: File) => {
+    if (!file) return
+    try {
+      if (file.size > 5_000_000) throw new Error('This backup is too large to import.')
+      const raw = await file.text()
+      const parsed: unknown = JSON.parse(raw)
+      if (!isAppData(parsed)) throw new Error('This is not a valid LAGAN backup.')
+      const confirmed = confirm(`Replace your current data with this backup containing ${parsed.habits.length} habits? The imported data will sync to your account.`)
+      if (confirmed) onImport(raw)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not import this file.')
+    }
+    if (fileRef.current) fileRef.current.value = ''
+  }
+  const reset = () => {
+    if (confirm('Reset LAGAN? This permanently removes your real habits, history, and XP from this device and your synced account.')) onFresh()
+  }
   const refreshApp = async () => {
     setRefreshing(true)
     try {
       if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations()
-        await Promise.all(registrations.map((registration) => registration.update()))
-        await Promise.all(registrations.map((registration) => registration.unregister()))
-      }
-      if ('caches' in window) {
-        const names = await caches.keys()
-        await Promise.all(names.map((cacheName) => caches.delete(cacheName)))
+        const registration = await navigator.serviceWorker.getRegistration()
+        await registration?.update()
       }
     } finally {
       window.location.reload()
@@ -271,7 +324,8 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (tab: Tab) => void }) {
 export default function LevelApp() {
   const { data, setData, mode, setMode, refreshDemo, resetReal, importData } = useLevelStore()
   const { session, username, loading, signOut } = useAccount()
-  const syncState = useCloudSync(data, setData, session?.user.id, mode)
+  const syncStatus = useCloudSync(data, setData, session?.user.id, mode)
+  const syncState = syncStatus.state
   const [tab, setTab] = useState<Tab>('home')
   const scores = useMemo(() => scoresFor(data), [data])
   useEffect(() => {
@@ -284,8 +338,6 @@ export default function LevelApp() {
     if (!data.onboarded || (data.defaultsVersion ?? 0) >= 2) return
     queueMicrotask(() => setData((current) => {
       if (!current.onboarded || (current.defaultsVersion ?? 0) >= 2) return current
-      const names = new Set(current.habits.map((habit) => (versionOn(habit, dateKey()) ?? habit.versions.at(-1))?.name.toLowerCase()))
-      const missing = HABIT_PRESETS.filter((preset) => !names.has(preset.name.toLowerCase()))
       const today = dateKey()
       const habits = current.habits.map((habit) => {
         const version = versionOn(habit, today) ?? habit.versions.at(-1)
@@ -295,10 +347,11 @@ export default function LevelApp() {
           versions: [...habit.versions.filter((item) => item.effectiveDate !== today), { ...version, effectiveDate: today, category: 'Discipline' as const }],
         }
       })
-      return { ...current, defaultsVersion: 2, habits: [...habits, ...missing.map((preset) => createPresetHabit(preset))] }
+      return { ...current, defaultsVersion: 2, habits }
     }))
   }, [data.defaultsVersion, data.onboarded, setData])
-  if (loading) return <div className="auth-loading"><div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><span>Loading your character…</span></div>
+  const loadingAccountData = Boolean(session && mode === 'real' && syncStatus.userId !== session.user.id)
+  if (loading || loadingAccountData) return <div className="auth-loading"><div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><span>Loading your character…</span></div>
   if (!session && mode !== 'demo') return <AuthScreen onDemo={refreshDemo} />
   if (!data.onboarded && mode === 'real') return <Onboarding onFinish={setData} onDemo={refreshDemo} />
   return <div className="app-shell"><Header data={data} mode={mode} /><div className="ambient-orb" style={{ opacity: Math.max(.12, overallScore(scores) / 250) }} /><main>{tab === 'home' && <ProgressScreen data={data} />}{tab === 'today' && <TodayScreen data={data} setData={setData} goHabits={() => setTab('habits')} />}{tab === 'history' && <HistoryScreen data={data} />}{tab === 'habits' && <HabitsScreen data={data} setData={setData} />}{tab === 'settings' && <SettingsScreen data={data} setData={setData} mode={mode} onDemo={refreshDemo} onFresh={resetReal} onImport={importData} goHabits={() => setTab('habits')} accountEmail={session?.user.email} username={username} syncState={syncState} onSignOut={signOut} />}</main><BottomNav tab={tab} setTab={setTab} /></div>

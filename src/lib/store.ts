@@ -1,14 +1,61 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createDemoData, emptyData } from './data'
-import { CATEGORIES, type AppData, type AppMode } from './types'
+import { CATEGORIES, type AppData, type AppMode, type Category } from './types'
 
 const MODE_KEY = 'level:mode'
 const keyFor = (mode: AppMode) => `level:data:${mode}`
 
-const isAppData = (value: unknown): value is AppData => {
-  if (!value || typeof value !== 'object') return false
-  const data = value as Partial<AppData>
-  return data.version === 1 && Array.isArray(data.habits) && typeof data.completions === 'object'
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value))
+
+const isCategory = (value: unknown): value is Category =>
+  typeof value === 'string' && CATEGORIES.includes(value as Category)
+
+const isDateKey = (value: unknown) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T12:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+}
+
+export const isAppData = (value: unknown): value is AppData => {
+  if (!isRecord(value) || value.version !== 1) return false
+  if (typeof value.name !== 'string' || typeof value.onboarded !== 'boolean') return false
+  if (!Array.isArray(value.focusAreas) || !value.focusAreas.every(isCategory)) return false
+  if (!Array.isArray(value.habits) || !isRecord(value.completions) || !isRecord(value.challenges)) return false
+
+  const habitIds = new Set<string>()
+  const habitsValid = value.habits.every((habit) => {
+    if (!isRecord(habit) || typeof habit.id !== 'string' || !isDateKey(habit.createdDate)) return false
+    if (!habit.id || habitIds.has(habit.id)) return false
+    habitIds.add(habit.id)
+    if (habit.archivedDate !== undefined && !isDateKey(habit.archivedDate)) return false
+    if (!Array.isArray(habit.versions) || habit.versions.length === 0) return false
+    const effectiveDates = new Set<string>()
+    return habit.versions.every((version) => {
+      if (!isRecord(version) || !isDateKey(version.effectiveDate)) return false
+      if (effectiveDates.has(version.effectiveDate as string)) return false
+      effectiveDates.add(version.effectiveDate as string)
+      if (typeof version.name !== 'string' || !version.name.trim() || !isCategory(version.category)) return false
+      if (!Array.isArray(version.weekdays) || version.weekdays.length === 0) return false
+      if (!version.weekdays.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)) return false
+      if (version.kind !== 'checkbox' && version.kind !== 'numeric') return false
+      return typeof version.target === 'number'
+        && Number.isFinite(version.target)
+        && version.target > 0
+        && typeof version.unit === 'string'
+    })
+  })
+  if (!habitsValid) return false
+
+  const completionsValid = Object.values(value.completions).every((completion) =>
+    isRecord(completion)
+    && typeof completion.value === 'number'
+    && Number.isFinite(completion.value)
+    && completion.value >= 0
+    && typeof completion.updatedAt === 'string')
+  const challengesValid = Object.values(value.challenges).every((challenge) =>
+    isRecord(challenge) && typeof challenge.completedAt === 'string')
+  return completionsValid && challengesValid
 }
 
 const loadMode = (): AppMode => localStorage.getItem(MODE_KEY) === 'demo' ? 'demo' : 'real'

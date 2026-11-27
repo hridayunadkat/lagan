@@ -1,7 +1,13 @@
 import type { Session } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
+import { emptyData } from './data'
+import { isAppData } from './store'
 import type { AppData, AppMode } from './types'
 import { supabase } from './supabase'
+
+const REAL_DATA_OWNER_KEY = 'level:real-owner'
+const dirtyKeyFor = (userId: string) => `level:sync-dirty:${userId}`
+type SyncState = 'idle' | 'loading' | 'saved' | 'error'
 
 export function useAccount() {
   const [session, setSession] = useState<Session | null>(null)
@@ -62,36 +68,70 @@ export function useCloudSync(
   mode: AppMode,
 ) {
   const readyForUser = useRef<string | null>(null)
-  const [syncState, setSyncState] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle')
+  const saveQueue = useRef(Promise.resolve())
+  const saveRevision = useRef(0)
+  const skipSaveForData = useRef<AppData | null>(null)
+  const [status, setStatus] = useState<{ state: SyncState; userId?: string }>({ state: 'idle' })
 
   useEffect(() => {
+    saveRevision.current += 1
     if (!supabase || !userId || mode !== 'real') {
       readyForUser.current = null
-      queueMicrotask(() => setSyncState('idle'))
+      queueMicrotask(() => setStatus({ state: 'idle' }))
       return
     }
     const client = supabase
     let active = true
     readyForUser.current = null
-    queueMicrotask(() => setSyncState('loading'))
+    const localOwner = localStorage.getItem(REAL_DATA_OWNER_KEY)
+    const switchedAccounts = Boolean(localOwner && localOwner !== userId)
+    if (switchedAccounts) setData(emptyData())
+    queueMicrotask(() => setStatus({ state: 'loading', userId }))
     const load = async () => {
-      const { data: row, error } = await client.from('level_data').select('data').eq('user_id', userId).maybeSingle()
+      const { data: row, error } = await client.from('level_data').select('data, updated_at').eq('user_id', userId).maybeSingle()
       if (!active) return
       if (error) {
-        setSyncState('error')
+        setStatus({ state: 'error', userId })
         return
       }
       if (row?.data) {
-        setData(row.data as AppData)
-      } else {
-        const { error: saveError } = await client.from('level_data').upsert({ user_id: userId, data })
-        if (saveError) {
-          setSyncState('error')
+        if (!isAppData(row.data)) {
+          setStatus({ state: 'error', userId })
           return
         }
+        const dirtyAt = localOwner === userId ? localStorage.getItem(dirtyKeyFor(userId)) : null
+        const remoteUpdatedAt = typeof row.updated_at === 'string' ? Date.parse(row.updated_at) : 0
+        const localChangedAt = dirtyAt ? Date.parse(dirtyAt) : 0
+        if (localChangedAt > remoteUpdatedAt) {
+          const updatedAt = new Date().toISOString()
+          const { error: saveError } = await client.from('level_data').upsert({
+            user_id: userId,
+            data,
+            updated_at: updatedAt,
+          })
+          if (saveError) {
+            setStatus({ state: 'error', userId })
+            return
+          }
+          localStorage.removeItem(dirtyKeyFor(userId))
+        } else {
+          skipSaveForData.current = row.data
+          setData(row.data)
+          localStorage.removeItem(dirtyKeyFor(userId))
+        }
+      } else {
+        const initialData = switchedAccounts ? emptyData() : data
+        setData(initialData)
+        const { error: saveError } = await client.from('level_data').upsert({ user_id: userId, data: initialData })
+        if (saveError) {
+          setStatus({ state: 'error', userId })
+          return
+        }
+        localStorage.removeItem(dirtyKeyFor(userId))
       }
+      localStorage.setItem(REAL_DATA_OWNER_KEY, userId)
       readyForUser.current = userId
-      setSyncState('saved')
+      setStatus({ state: 'saved', userId })
     }
     void load()
     return () => { active = false }
@@ -101,18 +141,30 @@ export function useCloudSync(
 
   useEffect(() => {
     if (!supabase || !userId || mode !== 'real' || readyForUser.current !== userId) return
+    if (skipSaveForData.current === data) {
+      skipSaveForData.current = null
+      return
+    }
     const client = supabase
-    const timeout = window.setTimeout(async () => {
-      setSyncState('loading')
-      const { error } = await client.from('level_data').upsert({
-        user_id: userId,
-        data,
-        updated_at: new Date().toISOString(),
+    const revision = ++saveRevision.current
+    localStorage.setItem(dirtyKeyFor(userId), new Date().toISOString())
+    const timeout = window.setTimeout(() => {
+      setStatus({ state: 'loading', userId })
+      saveQueue.current = saveQueue.current.then(async () => {
+        if (revision !== saveRevision.current || readyForUser.current !== userId) return
+        const { error } = await client.from('level_data').upsert({
+          user_id: userId,
+          data,
+          updated_at: new Date().toISOString(),
+        })
+        if (revision === saveRevision.current && readyForUser.current === userId) {
+          if (!error) localStorage.removeItem(dirtyKeyFor(userId))
+          setStatus({ state: error ? 'error' : 'saved', userId })
+        }
       })
-      setSyncState(error ? 'error' : 'saved')
     }, 450)
     return () => window.clearTimeout(timeout)
   }, [data, mode, userId])
 
-  return syncState
+  return status
 }

@@ -50,10 +50,10 @@ export interface AppData {
 export type AppMode = 'real' | 'demo'
 
 export const CATEGORY_META: Record<Category, { color: string; soft: string }> = {
-  Physical: { color: '#46e58c', soft: 'rgba(70,229,140,.14)' },
+  Physical: { color: '#ff624d', soft: 'rgba(255,98,77,.14)' },
   Social: { color: '#53a8ff', soft: 'rgba(83,168,255,.14)' },
-  Discipline: { color: '#ff624d', soft: 'rgba(255,98,77,.14)' },
-  Mental: { color: '#f4d35e', soft: 'rgba(244,211,94,.14)' },
-  Finance: { color: '#ff9f43', soft: 'rgba(255,159,67,.14)' },
+  Discipline: { color: '#f4d35e', soft: 'rgba(244,211,94,.14)' },
+  Mental: { color: '#ff9f43', soft: 'rgba(255,159,67,.14)' },
+  Finance: { color: '#46e58c', soft: 'rgba(70,229,140,.14)' },
   Ambition: { color: '#a97cff', soft: 'rgba(169,124,255,.14)' },
 }
