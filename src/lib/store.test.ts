@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAppData } from './store'
+import { isAppData, normalizeAppData } from './store'
 
 const validBackup = () => ({
   version: 1,
@@ -54,5 +54,14 @@ describe('backup validation', () => {
     const duplicateBackup = validBackup()
     duplicateBackup.habits.push(structuredClone(duplicateBackup.habits[0]))
     expect(isAppData(duplicateBackup)).toBe(false)
+  })
+
+  it('migrates legacy Ambition categories to Health', () => {
+    const backup = validBackup()
+    backup.focusAreas = ['Ambition']
+    backup.habits[0].versions[0].category = 'Ambition'
+    const normalized = normalizeAppData(backup)
+    expect(normalized?.focusAreas).toEqual(['Health'])
+    expect(normalized?.habits[0].versions[0].category).toBe('Health')
   })
 })

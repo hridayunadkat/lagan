@@ -58,6 +58,29 @@ export const isAppData = (value: unknown): value is AppData => {
   return completionsValid && challengesValid
 }
 
+export const normalizeAppData = (value: unknown): AppData | null => {
+  if (!isRecord(value)) return null
+  const migrated = {
+    ...value,
+    focusAreas: Array.isArray(value.focusAreas)
+      ? value.focusAreas.map((category) => category === 'Ambition' ? 'Health' : category)
+      : value.focusAreas,
+    habits: Array.isArray(value.habits)
+      ? value.habits.map((habit) => {
+        if (!isRecord(habit) || !Array.isArray(habit.versions)) return habit
+        return {
+          ...habit,
+          versions: habit.versions.map((version) =>
+            isRecord(version) && version.category === 'Ambition'
+              ? { ...version, category: 'Health' }
+              : version),
+        }
+      })
+      : value.habits,
+  }
+  return isAppData(migrated) ? migrated : null
+}
+
 const loadMode = (): AppMode => localStorage.getItem(MODE_KEY) === 'demo' ? 'demo' : 'real'
 
 const loadData = (mode: AppMode): AppData => {
@@ -65,7 +88,8 @@ const loadData = (mode: AppMode): AppData => {
   if (saved) {
     try {
       const parsed: unknown = JSON.parse(saved)
-      if (isAppData(parsed)) return parsed
+      const normalized = normalizeAppData(parsed)
+      if (normalized) return normalized
     } catch {
       // A corrupt local save should never prevent the app from opening.
     }
@@ -109,11 +133,8 @@ export function useLevelStore() {
 
   const importData = useCallback((raw: string) => {
     const parsed: unknown = JSON.parse(raw)
-    if (!isAppData(parsed)) throw new Error('This is not a valid LAGAN backup.')
-    const normalized: AppData = {
-      ...parsed,
-      focusAreas: parsed.focusAreas.filter((area) => CATEGORIES.includes(area)),
-    }
+    const normalized = normalizeAppData(parsed)
+    if (!normalized) throw new Error('This is not a valid LAGAN backup.')
     setModeState('real')
     localStorage.setItem(MODE_KEY, 'real')
     setDataState(normalized)

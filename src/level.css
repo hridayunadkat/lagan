@@ -56,6 +56,9 @@ h2 { font-size: 17px; letter-spacing: -.35px; }
 .page-heading { padding: 24px 2px 22px; }
 .page-heading .eyebrow { color: var(--lime); margin-bottom: 8px; }
 .page-heading p:last-child { margin-top: 7px; color: var(--muted); font-size: 13px; }
+.settings-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.settings-page-heading > div > p:last-child { margin-top: 7px; color: var(--muted); font-size: 13px; }
+.settings-page-heading .icon-button { flex: 0 0 auto; }
 .today-heading { padding: 25px 2px 21px; display: flex; justify-content: space-between; align-items: flex-start; }
 .today-heading .date-label { color: var(--lime); margin-bottom: 8px; }
 .today-heading p:last-child { color: var(--muted); font-size: 13px; margin-top: 7px; }

@@ -1,7 +1,7 @@
 # LAGAN
 
 A mobile-first self-improvement PWA that turns daily habits into character
-progress across Physical, Social, Discipline, Mental, Finance, and Ambition.
+progress across Physical, Social, Discipline, Mental, Finance, and Health.
 
 ## Run locally
 

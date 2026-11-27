@@ -1,6 +1,6 @@
 import {
   Archive, ArrowLeft, BarChart3, CalendarDays, Check, ChevronRight, CircleDollarSign,
-  Brain, DoorStairwell, Download, Dumbbell, Flame, Focus, Gauge, Home, Minus, Pencil, Plus,
+  Brain, Download, Dumbbell, Flame, Focus, Gauge, HeartPulse, Home, Minus, Pencil, Plus,
   RotateCcw, Settings, Sparkles, Target, Trash2, Upload,
   UserRound, UsersRound, X, LogOut, Cloud, History as HistoryIcon, RefreshCw,
 } from 'lucide-react'
@@ -20,7 +20,7 @@ import {
   completionKey, completionRatio, dailyRatio, dateKey, dateRange, habitStreak, isScheduled,
   overallScore, scoreBreakdownFor, scoresFor, shiftDate, streaksFor, totalCompletions, versionOn, xpFor,
 } from './lib/scoring'
-import { isAppData, useLevelStore } from './lib/store'
+import { normalizeAppData, useLevelStore } from './lib/store'
 import {
   CATEGORIES, CATEGORY_META, type AppData, type Category, type Habit,
 } from './lib/types'
@@ -28,10 +28,11 @@ import {
 type Tab = 'home' | 'today' | 'history' | 'habits' | 'settings'
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const FULL_WEEK = [0, 1, 2, 3, 4, 5, 6]
+const V3_DEFAULT_NAMES = new Set(['Floss', 'Peace of mind'])
 
 const CATEGORY_ICONS: Record<Category, typeof Dumbbell> = {
   Physical: Dumbbell, Social: UsersRound, Discipline: Pencil,
-  Mental: Brain, Finance: CircleDollarSign, Ambition: DoorStairwell,
+  Mental: Brain, Finance: CircleDollarSign, Health: HeartPulse,
 }
 
 function CategoryIcon({ category, size = 18 }: { category: Category; size?: number }) {
@@ -68,7 +69,10 @@ function RadarChart({ scores }: { scores: Record<Category, number | null> }) {
     {CATEGORIES.map((category, index) => {
       const [x, y] = pointAt(index, 1.21)
       const Icon = CATEGORY_ICONS[category]
-      return <Icon key={category} x={x - 9} y={y - 9} width={18} height={18} color={CATEGORY_META[category].color} strokeWidth={2.4} aria-label={category} />
+      const labelWidth = category.length * 4.8
+      const groupWidth = 20 + labelWidth
+      const startX = x - groupWidth / 2
+      return <g key={category} aria-label={category}><Icon x={startX} y={y - 9} width={18} height={18} color={CATEGORY_META[category].color} strokeWidth={2.4} /><text x={startX + 21} y={y + 2.5} className="radar-label" style={{ fill: CATEGORY_META[category].color }}>{category.toUpperCase()}</text></g>
     })}
     <circle cx={center} cy={center} r="38" className="radar-center" />
     <text x={center} y={center + 5} className="radar-score" textAnchor="middle">{overall}</text>
@@ -111,7 +115,7 @@ function Onboarding({ onFinish, onDemo }: { onFinish: (data: AppData) => void; o
   const finish = (skip = false) => {
     const today = dateKey()
     const selected = skip ? HABIT_PRESETS : HABIT_PRESETS.filter((preset) => starters.includes(preset.name))
-    onFinish({ version: 1, defaultsVersion: 2, name: skip ? '' : name.trim(), onboarded: true, focusAreas: skip ? [] : focus, habits: selected.map((preset) => createPresetHabit(preset, today)), completions: {}, challenges: {} })
+    onFinish({ version: 1, defaultsVersion: 3, name: skip ? '' : name.trim(), onboarded: true, focusAreas: skip ? [] : focus, habits: selected.map((preset) => createPresetHabit(preset, today)), completions: {}, challenges: {} })
   }
   return <main className="onboarding">
     <div className="brand-mark"><img src="/lagan-icon-192.png" alt="LAGAN" /></div><p className="eyebrow">BUILD YOUR CHARACTER</p><h1>Level up your<br />real life.</h1>
@@ -281,8 +285,9 @@ function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabi
       if (file.size > 5_000_000) throw new Error('This backup is too large to import.')
       const raw = await file.text()
       const parsed: unknown = JSON.parse(raw)
-      if (!isAppData(parsed)) throw new Error('This is not a valid LAGAN backup.')
-      const confirmed = confirm(`Replace your current data with this backup containing ${parsed.habits.length} habits? The imported data will sync to your account.`)
+      const normalized = normalizeAppData(parsed)
+      if (!normalized) throw new Error('This is not a valid LAGAN backup.')
+      const confirmed = confirm(`Replace your current data with this backup containing ${normalized.habits.length} habits? The imported data will sync to your account.`)
       if (confirmed) onImport(raw)
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not import this file.')
@@ -304,12 +309,11 @@ function SettingsScreen({ data, setData, mode, onDemo, onFresh, onImport, goHabi
     }
   }
   return <div className="screen">
-    <section className="page-heading"><p className="eyebrow">CONFIGURATION</p><h1>Settings</h1><p>Make LAGAN yours.</p></section>
+    <section className="page-heading settings-page-heading"><div><p className="eyebrow">CONFIGURATION</p><h1>Settings</h1><p>Make LAGAN yours.</p></div><button className="icon-button accent" onClick={refreshApp} disabled={refreshing} aria-label="Refresh app"><RefreshCw className={refreshing ? 'spinning' : ''} size={20} /></button></section>
     {mode === 'demo' && <section className="demo-panel"><Sparkles /><div><strong>You’re exploring demo mode</strong><p>Demo history is separate from your real progress.</p></div><button onClick={onFresh}>Sign in</button></section>}
     {accountEmail && <section className="settings-group"><h2>Account</h2><div className="settings-card"><div className="account-row"><div className="account-avatar">{(username || accountEmail).slice(0, 1).toUpperCase()}</div><span><strong>{username || 'LAGAN player'}</strong><small>{accountEmail}</small></span><div className={`sync-badge ${syncState}`}><Cloud size={12} />{syncState === 'loading' ? 'Syncing' : syncState === 'error' ? 'Offline' : 'Synced'}</div></div><button className="setting-row" onClick={onSignOut}><LogOut /><span><strong>Sign out</strong><small>Your local data stays on this device</small></span><ChevronRight /></button></div></section>}
     <section className="settings-group"><h2>Profile</h2><div className="settings-card"><div className="setting-name"><UserRound /><label><span>YOUR NAME</span><input value={name} onChange={(event) => setName(event.target.value)} onBlur={() => setData((current) => ({ ...current, name: name.trim() }))} /></label></div><button className="setting-row" onClick={goHabits}><Target /><span><strong>Manage habits</strong><small>{data.habits.filter((habit) => !habit.archivedDate).length} active habits</small></span><ChevronRight /></button></div></section>
     <section className="settings-group"><h2>Your data</h2><div className="settings-card"><button className="setting-row" onClick={exportData}><Download /><span><strong>Export backup</strong><small>Download your data as JSON</small></span><ChevronRight /></button><button className="setting-row" onClick={() => fileRef.current?.click()}><Upload /><span><strong>Import backup</strong><small>Restore a LAGAN JSON file</small></span><ChevronRight /></button><input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /></div></section>
-    <section className="settings-group"><h2>App</h2><div className="settings-card"><button className="setting-row" onClick={refreshApp} disabled={refreshing}><RefreshCw className={refreshing ? 'spinning' : ''} /><span><strong>{refreshing ? 'Refreshing…' : 'Refresh app'}</strong><small>Fetch the newest version without deleting your data</small></span><ChevronRight /></button></div></section>
     <section className="settings-group"><h2>Modes</h2><div className="settings-card"><button className="setting-row" onClick={onDemo}><Sparkles /><span><strong>Try demo</strong><small>Explore with believable sample history</small></span><ChevronRight /></button>{mode === 'demo' && <button className="setting-row" onClick={onFresh}><ArrowLeft /><span><strong>Return to real tracking</strong><small>Your real data is waiting</small></span><ChevronRight /></button>}</div></section>
     <section className="settings-group danger-zone"><h2>Danger zone</h2><button className="setting-row" onClick={reset}><RotateCcw /><span><strong>Reset all real data</strong><small>This cannot be undone</small></span><ChevronRight /></button></section>
     <div className="about"><div className="brand-small"><img src="/lagan-icon-192.png" alt="" /></div><strong>LAGAN</strong><span>Version 1.1 · Secure cloud sync</span><p>{accountEmail ? 'Your progress is synced to your account.' : 'Demo data stays on this device.'}</p></div>
@@ -335,19 +339,27 @@ export default function LevelApp() {
     window.scrollTo(0, 0)
   }, [tab])
   useEffect(() => {
-    if (!data.onboarded || (data.defaultsVersion ?? 0) >= 2) return
+    if (!data.onboarded || (data.defaultsVersion ?? 0) >= 3) return
     queueMicrotask(() => setData((current) => {
-      if (!current.onboarded || (current.defaultsVersion ?? 0) >= 2) return current
+      const defaultsVersion = current.defaultsVersion ?? 0
+      if (!current.onboarded || defaultsVersion >= 3) return current
       const today = dateKey()
-      const habits = current.habits.map((habit) => {
-        const version = versionOn(habit, today) ?? habit.versions.at(-1)
-        if (version?.name.toLowerCase() !== 'journal' || version.category === 'Discipline') return habit
-        return {
-          ...habit,
-          versions: [...habit.versions.filter((item) => item.effectiveDate !== today), { ...version, effectiveDate: today, category: 'Discipline' as const }],
-        }
-      })
-      return { ...current, defaultsVersion: 2, habits }
+      let habits = current.habits
+      if (defaultsVersion < 2) {
+        habits = habits.map((habit) => {
+          const version = versionOn(habit, today) ?? habit.versions.at(-1)
+          if (version?.name.toLowerCase() !== 'journal' || version.category === 'Discipline') return habit
+          return {
+            ...habit,
+            versions: [...habit.versions.filter((item) => item.effectiveDate !== today), { ...version, effectiveDate: today, category: 'Discipline' as const }],
+          }
+        })
+      }
+      const names = new Set(habits.map((habit) => (versionOn(habit, today) ?? habit.versions.at(-1))?.name.toLowerCase()))
+      const additions = HABIT_PRESETS
+        .filter((preset) => V3_DEFAULT_NAMES.has(preset.name) && !names.has(preset.name.toLowerCase()))
+        .map((preset) => createPresetHabit(preset, today))
+      return { ...current, defaultsVersion: 3, habits: [...habits, ...additions] }
     }))
   }, [data.defaultsVersion, data.onboarded, setData])
   const loadingAccountData = Boolean(session && mode === 'real' && syncStatus.userId !== session.user.id)

@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
 import { emptyData } from './data'
-import { isAppData } from './store'
+import { normalizeAppData } from './store'
 import type { AppData, AppMode } from './types'
 import { supabase } from './supabase'
 
@@ -95,7 +95,8 @@ export function useCloudSync(
         return
       }
       if (row?.data) {
-        if (!isAppData(row.data)) {
+        const normalized = normalizeAppData(row.data)
+        if (!normalized) {
           setStatus({ state: 'error', userId })
           return
         }
@@ -115,8 +116,8 @@ export function useCloudSync(
           }
           localStorage.removeItem(dirtyKeyFor(userId))
         } else {
-          skipSaveForData.current = row.data
-          setData(row.data)
+          skipSaveForData.current = normalized
+          setData(normalized)
           localStorage.removeItem(dirtyKeyFor(userId))
         }
       } else {

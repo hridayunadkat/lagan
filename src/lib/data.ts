@@ -9,6 +9,8 @@ export const HABIT_PRESETS = [
   { name: 'Learn Gujarati', category: 'Mental', kind: 'numeric', target: 15, unit: 'minutes' },
   { name: 'Play a chess game', category: 'Mental', kind: 'checkbox', target: 1, unit: 'game' },
   { name: 'Journal', category: 'Discipline', kind: 'checkbox', target: 1, unit: 'entry' },
+  { name: 'Floss', category: 'Health', kind: 'checkbox', target: 1, unit: 'time' },
+  { name: 'Peace of mind', category: 'Health', kind: 'checkbox', target: 1, unit: 'moment' },
 ] as const
 
 export const createPresetHabit = (preset: (typeof HABIT_PRESETS)[number], createdDate = dateKey()): Habit => ({
@@ -31,7 +33,7 @@ const STARTERS: Record<Category, { name: string; kind: 'checkbox' | 'numeric'; t
   Discipline: { name: 'Focused work session', kind: 'checkbox', target: 1, unit: 'session' },
   Mental: { name: 'Read', kind: 'numeric', target: 20, unit: 'minutes' },
   Finance: { name: 'Review spending', kind: 'checkbox', target: 1, unit: 'review' },
-  Ambition: { name: 'Advance a personal goal', kind: 'checkbox', target: 1, unit: 'step' },
+  Health: { name: 'Floss', kind: 'checkbox', target: 1, unit: 'time' },
 }
 
 export const createStarterHabit = (category: Category, createdDate = dateKey()): Habit => {
@@ -53,7 +55,7 @@ export const createStarterHabit = (category: Category, createdDate = dateKey()):
 
 export const emptyData = (): AppData => ({
   version: 1,
-  defaultsVersion: 2,
+  defaultsVersion: 3,
   name: '',
   onboarded: false,
   focusAreas: [],
@@ -66,12 +68,12 @@ export const createDemoData = (): AppData => {
   const today = dateKey()
   const created = shiftDate(today, -34)
   const habits = [
-    ...CATEGORIES.filter((category) => category !== 'Physical' && category !== 'Mental').map((category) => createStarterHabit(category, created)),
+    ...CATEGORIES.filter((category) => category !== 'Physical' && category !== 'Mental' && category !== 'Health').map((category) => createStarterHabit(category, created)),
     ...HABIT_PRESETS.map((preset) => createPresetHabit(preset, created)),
   ]
   const data: AppData = {
     version: 1,
-    defaultsVersion: 2,
+    defaultsVersion: 3,
     name: 'Alex',
     onboarded: true,
     focusAreas: [...CATEGORIES],

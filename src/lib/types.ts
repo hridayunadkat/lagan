@@ -4,7 +4,7 @@ export const CATEGORIES = [
   'Discipline',
   'Mental',
   'Finance',
-  'Ambition',
+  'Health',
 ] as const
 
 export type Category = (typeof CATEGORIES)[number]
@@ -55,5 +55,5 @@ export const CATEGORY_META: Record<Category, { color: string; soft: string }> = 
   Discipline: { color: '#f4d35e', soft: 'rgba(244,211,94,.14)' },
   Mental: { color: '#ff9f43', soft: 'rgba(255,159,67,.14)' },
   Finance: { color: '#46e58c', soft: 'rgba(70,229,140,.14)' },
-  Ambition: { color: '#a97cff', soft: 'rgba(169,124,255,.14)' },
+  Health: { color: '#a97cff', soft: 'rgba(169,124,255,.14)' },
 }

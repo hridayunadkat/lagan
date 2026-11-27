@@ -15,7 +15,7 @@ const COLORS = {
   lime: new Color("#b8ff5a"),
 }
 
-const CATEGORIES = ["Physical", "Social", "Discipline", "Mental", "Finance", "Ambition"]
+const CATEGORIES = ["Physical", "Social", "Discipline", "Mental", "Finance", "Health"]
 const CATEGORY_COLORS = ["#ff624d", "#53a8ff", "#f4d35e", "#ff9f43", "#46e58c", "#a97cff"]
 const CATEGORY_SYMBOLS = [
   "figure.strengthtraining.traditional",
@@ -23,7 +23,7 @@ const CATEGORY_SYMBOLS = [
   "pencil",
   "brain",
   "dollarsign",
-  "figure.stairs",
+  "heart.fill",
 ]
 
 async function requestJSON(url, options = {}) {
@@ -180,14 +180,19 @@ function categoryScore(data, category, today = dateKey()) {
     let habitScheduled = 0
     for (const day of days) {
       const version = versionOn(habit, day)
-      if (version?.category !== category || !isScheduled(habit, day)) continue
+      const categoryMatches = version?.category === category
+        || (category === "Health" && version?.category === "Ambition")
+      if (!categoryMatches || !isScheduled(habit, day)) continue
       habitScheduled += 1
       habitCompleted += completionRatio(data, habit, day)
     }
 
     if (habitScheduled > 0) {
       const firstCategoryVersion = [...habit.versions]
-        .filter((version) => version.category === category && version.effectiveDate <= today)
+        .filter((version) => (
+          version.category === category
+          || (category === "Health" && version.category === "Ambition")
+        ) && version.effectiveDate <= today)
         .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]
       if (firstCategoryVersion && firstCategoryVersion.effectiveDate > days[0]) {
         for (const day of days) {
@@ -270,17 +275,11 @@ function drawCategoryIcon(context, index, point) {
     context.setTextAlignedCenter()
     context.drawTextInRect("$", new Rect(point.x - 8, point.y - 9, 16, 18))
   } else {
-    // Ambition: ladder
-    context.setLineWidth(1.8)
-    strokeLine(context, new Point(point.x - 5, point.y + 6), new Point(point.x - 2, point.y - 6))
-    strokeLine(context, new Point(point.x + 2, point.y + 6), new Point(point.x + 5, point.y - 6))
-    for (const offset of [-3, 1, 5]) {
-      strokeLine(
-        context,
-        new Point(point.x - 4 + offset / 4, point.y + offset),
-        new Point(point.x + 4 + offset / 4, point.y + offset),
-      )
-    }
+    // Health: heart
+    context.setTextColor(color)
+    context.setFont(Font.boldSystemFont(16))
+    context.setTextAlignedCenter()
+    context.drawTextInRect("♥", new Rect(point.x - 8, point.y - 9, 16, 18))
   }
 }
 
@@ -318,7 +317,17 @@ function radarImage(scores) {
   const iconRadius = 41
   for (let index = 0; index < CATEGORIES.length; index += 1) {
     const point = radarPoint(index, 1, center, iconRadius)
-    drawCategoryIcon(context, index, point)
+    const labelWidth = CATEGORIES[index].length * 3.2
+    const groupWidth = 14 + labelWidth
+    const startX = Math.max(0, Math.min(130 - groupWidth, point.x - groupWidth / 2))
+    drawCategoryIcon(context, index, new Point(startX + 6, point.y))
+    context.setTextColor(new Color(CATEGORY_COLORS[index]))
+    context.setFont(Font.boldSystemFont(4.5))
+    context.setTextAlignedLeft()
+    context.drawTextInRect(
+      CATEGORIES[index].toUpperCase(),
+      new Rect(startX + 13, point.y - 4, labelWidth + 1, 8),
+    )
   }
 
   context.setFillColor(new Color("#0b0d0e", 0.94))
@@ -326,6 +335,7 @@ function radarImage(scores) {
   const overall = Math.round(scores.reduce((sum, score) => sum + score, 0) / CATEGORIES.length)
   context.setTextColor(COLORS.text)
   context.setFont(Font.boldSystemFont(15))
+  context.setTextAlignedCenter()
   context.drawTextInRect(String(overall), new Rect(center.x - 20, center.y - 11, 40, 19))
   context.setTextColor(COLORS.muted)
   context.setFont(Font.boldSystemFont(4.5))
